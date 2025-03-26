@@ -1,7 +1,5 @@
 { App to prove you can't win at Tic-Tac-Toe }
 
-{ If this flag isn't set, recursion doesn't work on CP/M }
-{$A-}
 { This flag turns off checking if the recursion stack and heap collide }
 {$K-}
 
@@ -161,6 +159,9 @@ begin
     winner2 := x;
 end;
 
+{ If this flag isn't set, recursion doesn't work on CP/M }
+{$A-}
+
 function minmax( alpha: integer; beta: integer; depth: integer; move: integer ): integer;
 var
     p, value, pieceMove, score : integer;
@@ -229,6 +230,8 @@ begin
     minmax := value;
 end;
 
+{$A+}
+
 procedure runit( move : integer );
 var
     score: integer;
@@ -291,4 +294,3 @@ begin
   
     WriteLn( 'iterations: ', loops );
 end.
-

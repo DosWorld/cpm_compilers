@@ -6,9 +6,9 @@
        ntvcm linkmt %1,paslib/S
 *)
 
-{ enable local variables for recursion and optimize }
-{$S+ }
+{ turn off range checking }
 {$R- }
+{ turn off exception checking }
 {$X- }
 
 program ttt;
@@ -160,6 +160,9 @@ begin
     lookForWinner := x;
 end;
 
+{ enable local variables for recursion }
+{$S+ }
+
 function minmax( alpha: byte; beta: byte; depth: byte; move: byte ): byte;
 var
     p, value, pieceMove, score : byte;
@@ -231,6 +234,8 @@ begin
   
     minmax := value;
 end;
+
+{$S- }
 
 procedure runit( move : byte );
 var
