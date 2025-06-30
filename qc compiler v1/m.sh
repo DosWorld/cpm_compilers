@@ -5,9 +5,9 @@ rm $str.PRN 2>/dev/null
 rm $str.HEX 2>/dev/null
 rm $str.COM 2>/dev/null
 
-ntvcm cc $str
-ntvcm asm $str
-ntvcm load $str
+ntvcm CC $str
+ntvcm ASM $str
+ntvcm LOAD $str
 
 rm $str.PRN 2>/dev/null
 rm $str.ASM 2>/dev/null
