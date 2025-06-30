@@ -6,7 +6,7 @@
 (*********************************************************************)
 MODULE sieve;
 
-FROM Djl IMPORT Write;
+FROM Terminal IMPORT Write,WriteString,WriteLn;
 
 CONST
   size = 8190;
@@ -39,24 +39,6 @@ BEGIN
     END;
 END WriteCardinal;
 
-PROCEDURE WriteLn;
-BEGIN
-    Write( CHAR( 13 ) );
-    Write( CHAR( 10 ) );
-END WriteLn;
-
-PROCEDURE WriteString(s:ARRAY OF CHAR);
-VAR i : CARDINAL;
-BEGIN
-    i:=0;
-    LOOP
-        IF i>HIGH(s) THEN EXIT END;
-        IF s[i]=0c THEN EXIT END;
-        Write(s[i]);
-        i:=i+1;
-    END;
-END WriteString;
-
 BEGIN
 
   FOR iter := 1 TO 10 DO
@@ -74,7 +56,7 @@ BEGIN
       END;
     END;
   END;
-  WriteString( "count of primes: " );
+  WriteString( 'count of primes: ' );
   WriteCardinal( count );
   WriteLn;
 END sieve.

@@ -2,7 +2,7 @@
 
 MODULE ttt;
 
-FROM Djl IMPORT Write;
+FROM Terminal IMPORT Write,WriteString,WriteLn;
 
 (*
 FROM ComLine IMPORT commandLine;
@@ -303,24 +303,6 @@ BEGIN
     END;
 END WriteCardinal;
 
-PROCEDURE WriteLn;
-BEGIN
-    Write( CHAR( 13 ) );
-    Write( CHAR( 10 ) );
-END WriteLn;
-
-PROCEDURE WriteString(s:ARRAY OF CHAR);
-VAR i : CARDINAL;
-BEGIN
-    i:=0;
-    LOOP
-        IF i>HIGH(s) THEN EXIT END;
-        IF s[i]=0c THEN EXIT END;
-        Write(s[i]);
-        i:=i+1;
-    END;
-END WriteString;
-
 PROCEDURE runit( move : CARDINAL );
 VAR score : CARDINAL;
 BEGIN
@@ -348,10 +330,6 @@ BEGIN
     procs[ 8 ] := proc8;
 
     loops := 0;
-(*
-    READ( commandLine, cmd );
-    result := StrToCard( cmd, loops );
-*)
     IF ( loops = 0 ) THEN loops := defaultIterations; END;
 
     FOR i := 0 TO 8 DO
@@ -365,16 +343,11 @@ BEGIN
         runit( 4 );
     END;
 
-    WriteString( "moves evaluated: " );
+    WriteString( 'moves evaluated: ' );
     WriteCardinal( evaluated );
     WriteLn;
-
-    WriteString( "iterations:      " );
+    WriteString( 'iterations:      ' );
     WriteCardinal( loops );
     WriteLn;
-(*
-    WRITELN( "moves evaluated: ", evaluated );
-    WRITELN( "iterations:      ", loops );
-*)
 END ttt.
 

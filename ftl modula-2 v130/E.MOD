@@ -1,6 +1,6 @@
-MODULE e;
+MODULE e2;
 
-FROM Djl IMPORT Write;
+FROM Terminal IMPORT Write,WriteString,WriteLn;
 
 CONST
    DIGITS = 200;
@@ -32,24 +32,6 @@ BEGIN
     END;
 END WriteCardinal;
 
-PROCEDURE WriteLn;
-BEGIN
-    Write( CHAR( 13 ) );
-    Write( CHAR( 10 ) );
-END WriteLn;
-
-PROCEDURE WriteString(s:ARRAY OF CHAR);
-VAR i : CARDINAL;
-BEGIN
-    i:=0;
-    LOOP
-        IF i>HIGH(s) THEN EXIT END;
-        IF s[i]=0c THEN EXIT END;
-        Write(s[i]);
-        i:=i+1;
-    END;
-END WriteString;
-
 BEGIN
     high := DIGITS;
     x := 0;
@@ -76,7 +58,7 @@ BEGIN
     END;
 
     WriteLn;
-    WriteString( "done" );
+    WriteString( 'done' );
     WriteLn;
-END e.
+END e2.
 
