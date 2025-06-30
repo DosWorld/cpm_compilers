@@ -1,0 +1,21 @@
+;****************************************
+;*					*
+;*    Q/C Compiler Support Routines	*
+;*	      M80 Version		*
+;*					*
+;*		09/27/81		*
+;****************************************
+;
+	ENTRY	ccgc,ccsxt,ccg,ccp
+	ENTRY	ccpo,cco,ccpx,ccx,ccpa,cca
+	ENTRY	ccpe,cce,ccpne,ccne,ccpgt,ccgt
+	ENTRY	ccplt,cclt,ccple,ccle,ccpge,ccge
+	ENTRY	ccpugt,ccugt,ccpult,ccult,ccpule,ccule
+	ENTRY	ccpuge,ccuge,ccpasr,ccasr,ccpasl,ccasl
+	ENTRY	ccps,ccs,ccneg,cccom,ccn
+	ENTRY	ccpmult,ccmult,ccpdiv,ccdiv
+	ENTRY	ccsw,bdos
+	PUBLIC	ccr1,ccr2,ccr3,ccr4,ccr5
+	INCLUDE CRUNLIB.ASM
+	END
+
