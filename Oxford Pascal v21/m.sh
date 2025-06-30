@@ -5,7 +5,7 @@ rm $str.PRN 2>/dev/null
 rm $str.OBJ 2>/dev/null
 
 ntvcm PAS $str
-ntvcm LOCATE %str
+ntvcm LOCATE $str
 
 rm $str.PRN 2>/dev/null
 rm $str.OBJ 2>/dev/null
