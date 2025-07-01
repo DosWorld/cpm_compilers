@@ -1,0 +1,244 @@
+/*
+    This fails to build and/or run with plmx because the compiler
+    doesn't support recursion.
+*/
+
+TTT: DO;
+
+/* these utilities taken from simpleio.src and fixed / improved */
+
+BDOS1: PROCEDURE (FUNC,PARM) BYTE EXTERNAL; /* gets RegA */
+    DECLARE FUNC BYTE;                      /* goes to RegC */
+    DECLARE PARM ADDRESS;                   /* goes to RegDE */
+END BDOS1;
+
+WR$CON: PROCEDURE (CHAR);
+    DECLARE CHAR  BYTE;
+    CALL BDOS1( 2, CHAR );
+END WR$CON;
+
+PRT$DOLLAR: PROCEDURE (ADRS);
+    DECLARE ADRS ADDRESS;
+    CALL BDOS1( 9, ADRS );
+END PRT$DOLLAR;
+
+PRT$ASCIIZ: PROCEDURE(STR);
+    DECLARE STR ADDRESS;
+    DECLARE S BASED STR BYTE;
+    DECLARE I BYTE;
+    I = 0;
+    DO WHILE S( I ) <> 0;
+        CALL WR$CON( S( I ) );
+        I = I + 1;
+    END;
+END PRT$ASCIIZ;
+
+PRT$CRLF: PROCEDURE;
+    CALL WR$CON( 13 );
+    CALL WR$CON( 10 );
+END PRT$CRLF;
+
+/*
+   the version in simpleio.src has a bug junk left over
+   in S from a prior call is printed.
+*/
+PRT$NUM: PROCEDURE( N );
+    DECLARE N ADDRESS;
+    DECLARE S( 5 ) BYTE INITIAL( ' ', ' ', ' ', ' ', '0' );
+    DECLARE ( I,J ) BYTE;
+    I = 4;
+    DO WHILE N > 0;
+        J = N MOD 10 + '0';
+        N = N / 10;
+        S( I ) = J;
+        I = I - 1;
+    END;
+    DO I = 0 TO 4;
+        IF S( I ) <> ' ' THEN DO;
+            CALL WR$CON( S( I ) );
+            S( I ) = ' ';
+        END;
+    END;
+END PRT$NUM;
+
+DECLARE SCOREWIN LITERALLY '6';
+DECLARE SCORETIE LITERALLY '5';
+DECLARE SCORELOSE LITERALLY '4';
+DECLARE SCOREMAX LITERALLY '9';
+DECLARE SCOREMIN LITERALLY '2';
+DECLARE SCOREINVALID LITERALLY '0';
+
+DECLARE PIECEBLANK LITERALLY '0';
+DECLARE PIECEX LITERALLY '1';
+DECLARE PIECEO LITERALLY '2';
+
+DECLARE ITERATIONS LITERALLY '10';
+
+DECLARE BOARD( 9 ) BYTE;
+DECLARE MOVECOUNT ADDRESS;
+
+
+WINNER2: PROCEDURE( MOVE ) ADDRESS;
+    DECLARE MOVE ADDRESS;
+    DECLARE X ADDRESS;
+
+    DO CASE MOVE;
+        /* 0 */
+        DO;
+            X = BOARD(0);
+            IF NOT ( ( ( X = BOARD(1) ) AND ( X = BOARD(2) ) ) OR
+                     ( ( X = BOARD(3) ) AND ( X = BOARD(6) ) ) OR
+                     ( ( X = BOARD(4) ) AND ( X = BOARD(8) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 1 */
+        DO;
+            X = BOARD(1);
+            IF NOT ( ( ( X = BOARD(0) ) AND ( X = BOARD(2) ) ) OR
+                     ( ( X = BOARD(4) ) AND ( X = BOARD(7) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 2 */
+        DO;
+            X = BOARD(2);
+            IF NOT ( ( ( X = BOARD(0) ) AND ( X = BOARD(1) ) ) OR
+                     ( ( X = BOARD(5) ) AND ( X = BOARD(8) ) ) OR
+                     ( ( X = BOARD(4) ) AND ( X = BOARD(6) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 3 */
+        DO;
+            X = BOARD(3);
+            IF NOT ( ( ( X = BOARD(4) ) AND ( X = BOARD(5) ) ) OR
+                     ( ( X = BOARD(0) ) AND ( X = BOARD(6) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 4 */
+        DO;
+            X = BOARD(4);
+            IF NOT ( ( ( X = BOARD(0) ) AND ( X = BOARD(8) ) ) OR
+                     ( ( X = BOARD(2) ) AND ( X = BOARD(6) ) ) OR
+                     ( ( X = BOARD(1) ) AND ( X = BOARD(7) ) ) OR
+                     ( ( X = BOARD(3) ) AND ( X = BOARD(5) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 5 */
+        DO;
+            X = BOARD(5);
+            IF NOT ( ( ( X = BOARD(3) ) AND ( X = BOARD(4) ) ) OR
+                     ( ( X = BOARD(2) ) AND ( X = BOARD(8) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 6 */
+        DO;
+            X = BOARD(6);
+            IF NOT ( ( ( X = BOARD(7) ) AND ( X = BOARD(8) ) ) OR
+                     ( ( X = BOARD(0) ) AND ( X = BOARD(3) ) ) OR
+                     ( ( X = BOARD(4) ) AND ( X = BOARD(2) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 7 */
+        DO;
+            X = BOARD(7);
+            IF NOT ( ( ( X = BOARD(6) ) AND ( X = BOARD(8) ) ) OR
+                     ( ( X = BOARD(1) ) AND ( X = BOARD(4) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+        /* 8 */
+        DO;
+            X = BOARD(8);
+            IF NOT ( ( ( X = BOARD(6) ) AND ( X = BOARD(7) ) ) OR
+                     ( ( X = BOARD(2) ) AND ( X = BOARD(5) ) ) OR
+                     ( ( X = BOARD(0) ) AND ( X = BOARD(4) ) ) )
+                THEN RETURN PIECEBLANK;
+            END;
+    END;
+
+    RETURN X;
+END WINNER2;
+
+MINMAX: PROCEDURE( ALPHA, BETA, DEPTH, MOVE ) ADDRESS REENTRANT;
+    DECLARE ( ALPHA, BETA, DEPTH, MOVE ) ADDRESS;
+    DECLARE ( P, VALUE, PIECEMOVE, SCORE ) ADDRESS;
+
+    MOVECOUNT = MOVECOUNT + 1;
+
+    IF DEPTH >= 4 THEN DO;
+        P = WINNER2( MOVE );
+        IF P <> PIECEBLANK THEN DO;
+            IF PIECEX = P THEN RETURN SCOREWIN;
+            RETURN SCORELOSE;
+        END;
+
+        IF 8 = DEPTH THEN RETURN SCORETIE;
+    END;
+
+    IF ( DEPTH AND 1 ) = 1 THEN DO;
+        VALUE = SCOREMIN;
+        PIECEMOVE = PIECEX;
+    END;
+    ELSE
+    DO;
+        VALUE = SCOREMAX;
+        PIECEMOVE = PIECEO;
+    END;
+
+    DO P = 0 TO 8;
+        IF PIECEBLANK = BOARD( P ) THEN DO;
+            BOARD( P ) = PIECEMOVE;
+            SCORE = MINMAX( ALPHA, BETA, DEPTH + 1, P );
+            BOARD( P ) = PIECEBLANK;
+
+            IF PIECEX = PIECEMOVE THEN DO;
+                IF SCORE > VALUE THEN DO;
+                    VALUE = SCORE;
+                    IF ( ( SCOREWIN = VALUE ) OR ( VALUE >= BETA ) )
+                        THEN RETURN VALUE;
+                    IF VALUE > ALPHA THEN ALPHA = VALUE;
+                END;
+            END;
+            ELSE
+            DO;
+                IF SCORE < VALUE THEN DO;
+                    VALUE = SCORE;
+                    IF ( ( SCORELOSE = VALUE ) OR ( VALUE <= ALPHA ) )
+                       THEN RETURN VALUE;
+                    IF VALUE < BETA THEN BETA = VALUE;
+                END;
+            END;
+        END;
+    END;
+
+    RETURN VALUE;
+END MINMAX;
+
+RUNIT: PROCEDURE( MOVE );
+    DECLARE ( MOVE, SCORE ) ADDRESS;
+    
+    BOARD( MOVE ) = PIECEX;
+    SCORE = MINMAX( SCOREMIN, SCOREMAX, 0, MOVE );
+    IF SCORETIE <> SCORE THEN
+        CALL PRT$DOLLAR( .( 'BUG SOMEWHERE; SCORE NOT TIE', 13, 10, '$' ) );
+    BOARD( MOVE ) = PIECEBLANK;
+END RUNIT;
+
+DO;
+    DECLARE I ADDRESS;
+
+    DO I = 0 TO 8;
+        BOARD( I ) = PIECEBLANK;
+    END;
+
+    DO I = 1 TO ITERATIONS;
+        MOVECOUNT = 0;
+        CALL RUNIT( 0 );
+        CALL RUNIT( 1 );
+        CALL RUNIT( 4 );
+    END;
+
+    CALL PRT$NUM( MOVECOUNT );
+    CALL PRT$DOLLAR( .( ' moves', 13, 10, '$' ) );
+END;
+
+END;
+

@@ -1,0 +1,152 @@
+	
+	/* SIMPLE I/O FUNCTIONS */
+
+	/* CALL BDOS FUNCTIONS WITH RETURN CODE */
+	BDOS1: PROCEDURE (FUNC,PARM) BYTE EXTERNAL; /* gets RegA */
+    		DECLARE FUNC BYTE;     /* goes to RegC */
+    		DECLARE PARM ADDRESS;  /* goes to RegDE */
+	END BDOS1;
+
+	/* CONOUT - CONSOLE OUT */
+	WR$CON: PROCEDURE (CHAR);
+  		DECLARE  CHAR  BYTE;
+  		CALL BDOS1(2, CHAR);
+	END WR$CON;
+
+	/* CONIN - CONSOLE IN (read one char blocking with echo) */
+	RD$CON: PROCEDURE BYTE;
+  		DECLARE  CHAR  BYTE;
+  		CHAR=BDOS1(1, 0);
+  		RETURN CHAR;
+	END RD$CON;
+
+	/* PRINT STR$ - print string terminated with $ */
+	PR$BUF:	PROCEDURE (ADRS);
+  		DECLARE  ADRS  ADDRESS;
+  		CALL BDOS1(9, ADRS);
+	END PR$BUF;
+
+	/* READ STR$ - input string from keyboard */
+	RD$BUF: PROCEDURE (BUF) ADDRESS;
+  		DECLARE  BUF  BYTE;
+  		CALL BDOS1(10, .BUF);
+	END RD$BUF;
+
+	/* CONSOLE STATUS - return 0 if no keys waiting */
+	CN$RDY: PROCEDURE BYTE;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(11, 0);
+  		RETURN ST;
+	END CN$RDY;
+
+	/* LOGIN DISK - select disc. DSK=0 for A:, 1 for B:, etc */
+	LOGIN: PROCEDURE (DSK);
+  		DECLARE  DSK  BYTE;
+  		CALL BDOS1(14, DSK);
+	END LOGIN;
+
+	OPEN: PROCEDURE (FCB) BYTE;
+  		DECLARE  FCB  BYTE;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(15, .FCB);
+  		RETURN ST;
+	END OPEN;
+
+	CLOSE: PROCEDURE (FCB) BYTE;
+  		DECLARE  FCB  BYTE;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(16, .FCB);
+  		RETURN ST;
+	END CLOSE;
+
+	/* DELECT FILE */
+	DLETE: PROCEDURE (FCB) BYTE;
+  		DECLARE  FCB  BYTE;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(19, .FCB);
+  		RETURN ST;
+	END DLETE;
+
+	/* READ FILE SEQUENTIAL */
+	RD$DSK: PROCEDURE (FCBA) BYTE;
+  		DECLARE  FCBA  ADDRESS;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(20, FCBA);
+  		RETURN ST;
+	END RD$DSK;
+	
+	/* WRITE FILE SEQUENTIAL */
+	WR$DSK: PROCEDURE (FCBA) BYTE;
+  		DECLARE  FCBA  ADDRESS;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(21, FCBA);
+  		RETURN ST;
+	END WR$DSK;
+
+	/* CREATE NEW FILE  */
+	MAKE:PROCEDURE (FCBA) BYTE;
+  		DECLARE  FCBA  ADDRESS;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(22, FCBA);
+  		RETURN ST;
+	END MAKE;
+
+	/* RENAME FILE  */
+	RNAME: PROCEDURE (FCBA) BYTE;
+  		DECLARE  FCBA  ADDRESS;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(23, FCBA);
+  		RETURN ST;
+	END RNAME;
+
+	/* RETURN CURRENT DRIVE - 0 for A:, 1 for B:, etc  */
+	DRIVE: PROCEDURE BYTE;
+  		DECLARE  ST  BYTE;
+  		ST=BDOS1(25, 0);
+  		RETURN ST;
+	END DRIVE;
+
+	/* SET DMA ADDRESS */
+	STDMA: PROCEDURE (BUF);
+  		DECLARE  BUF  ADDRESS;
+  		CALL BDOS1(26, BUF);
+	END STDMA;
+
+
+	/* PRINT CR LF */
+	PRTCRLF: PROCEDURE;
+		CALL WR$CON(13);
+		CALL WR$CON(10);
+	END PRTCRLF;
+
+	/* PRINT DECIMAL NUMBER */
+	PRTNUM: PROCEDURE(N);
+    		DECLARE N ADDRESS;
+    		DECLARE S(5) BYTE INITIAL(' ',' ',' ',' ','0');
+    		DECLARE (I,J) BYTE;
+    		I = 4;
+    		DO WHILE N > 0;
+        		J = N MOD 10 + '0';
+        		N = N / 10;
+        		S(I) = J;
+        		I = I - 1;
+    		END;
+    		DO I = 0 TO 4;
+        		IF S(I) <> ' ' THEN
+            			CALL WR$CON(S(I));
+    		END;
+	END PRTNUM;
+
+	/* PRINT 0 TERMINATED STRING VIA BDOS FUNCTION */
+	PRTSTR: PROCEDURE(STR);
+        	DECLARE STR ADDRESS;
+        	DECLARE S BASED STR BYTE;
+        	DECLARE I BYTE;
+        	I = 0;
+        	DO WHILE S(I) <> 0;
+            		CALL WR$CON(S(I));
+            		I = I + 1;
+        	END;
+    	END PRTSTR;
+
+

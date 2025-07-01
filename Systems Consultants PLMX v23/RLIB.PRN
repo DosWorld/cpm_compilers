@@ -1,0 +1,1154 @@
+	MACRO-80 3.44	09-Dec-81	PAGE	1
+
+
+                                ; RLIB.MAC	(= Run-time LIBrary...)
+                                ; --------
+                                ;
+                                ; CP/M 1.4 -- RLIB of PLMX
+                                ;
+                                ; Disassembled by:
+                                ;
+                                ; Mr Emmanuel ROCHE
+                                ; Chemin de Boisrond
+                                ; 17430 Tonnay-Charente
+                                ; FRANCE
+                                ;
+                                ;--------------------------------
+                                ;	ORG	0000H		; Standard CP/M RELocatable file
+                                ;--------------------------------
+                                ; Page Zero locations used.
+                                ;
+  0000                          Reboot	EQU	0000H		; Warm Boot
+  0006                          CPMADR	EQU	0006H		; Address of BDOS in TPA
+                                ;
+                                ;--------------------------------
+                                ; I *THINK* that BP stands for "Built-in Procedure".
+                                ;--------------------------------
+  0000'                         bp90@:
+  0000'   2B                    	DCX	H
+  0001'                         bp92@:
+  0001'   7C                    	MOV	A,H
+  0002'   2F                    	CMA
+  0003'   67                    	MOV	H,A
+  0004'   7D                    	MOV	A,L
+  0005'   2F                    	CMA
+  0006'   6F                    	MOV	L,A
+  0007'   C9                    	RET
+                                
+  0008'                         bp91@:
+  0008'   5E                    	MOV	E,M
+  0009'   23                    	INX	H
+  000A'   56                    	MOV	D,M
+  000B'   EB                    	XCHG
+  000C'   C3 0000'              	JMP	bp90@
+                                
+  000F'                         bp93@:
+  000F'   5E                    	MOV	E,M
+  0010'   23                    	INX	H
+  0011'   56                    	MOV	D,M
+  0012'   EB                    	XCHG
+  0013'   C3 0001'              	JMP	bp92@
+                                
+                                ;--------------------------------
+  0016'                         bp09@:
+  0016'   60                    	MOV	H,B
+  0017'   69                    	MOV	L,C
+  0018'   29                    ?J0118:	DAD	H
+  0019'   1D                    	DCR	E
+  001A'   C2 0018'              	JNZ	?J0118
+  001D'   7D                    	MOV	A,L
+	MACRO-80 3.44	09-Dec-81	PAGE	1-1
+
+
+  001E'   C9                    	RET
+                                
+  001F'                         bp94@:
+  001F'   CD 0016'              	CALL	bp09@
+  0022'   26 00                 	MVI	H,00H
+  0024'   C9                    	RET
+                                
+                                ;--------------------------------
+  0025'                         bp11@:
+  0025'   E1                    	POP	H
+  0026'   E3                    	XTHL
+  0027'   7D                    ?J0127:	MOV	A,L
+  0028'   B4                    	ORA	H
+  0029'   C8                    	RZ
+  002A'   0A                    	LDAX	B
+  002B'   12                    	STAX	D
+  002C'   13                    	INX	D
+  002D'   03                    	INX	B
+  002E'   2B                    	DCX	H
+  002F'   C3 0027'              	JMP	?J0127
+                                
+                                ;--------------------------------
+  0032'                         bp13@:
+  0032'   B7                    	ORA	A
+  0033'   79                    ?J0133:	MOV	A,C
+  0034'   17                    	RAL
+  0035'   4F                    	MOV	C,A
+  0036'   78                    	MOV	A,B
+  0037'   17                    	RAL
+  0038'   47                    	MOV	B,A
+  0039'   F5                    	PUSH	PSW
+  003A'   1D                    	DCR	E
+  003B'   CA 0042'              	JZ	?J0142
+  003E'   F1                    	POP	PSW
+  003F'   C3 0033'              	JMP	?J0133
+                                
+  0042'   F1                    ?J0142:	POP	PSW
+  0043'   69                    	MOV	L,C
+  0044'   60                    	MOV	H,B
+  0045'   C9                    	RET
+                                
+  0046'                         bp96@:
+  0046'   B7                     	ORA	A
+  0047'   79                    ?J0147:	MOV	A,C
+  0048'   17                    	RAL
+  0049'   4F                    	MOV	C,A
+  004A'   F5                    	PUSH	PSW
+  004B'   1D                    	DCR	E
+  004C'   CA 0053'              	JZ	?J0153
+  004F'   F1                    	POP	PSW
+  0050'   C3 0047'              	JMP	?J0147
+                                
+  0053'   F1                    ?J0153:	POP	PSW
+  0054'   79                    	MOV	A,C
+  0055'   6F                    	MOV	L,A
+  0056'   26 00                 	MVI	H,00H
+	MACRO-80 3.44	09-Dec-81	PAGE	1-2
+
+
+  0058'   C9                    	RET
+                                
+                                ;--------------------------------
+  0059'                         bp14@:
+  0059'   B7                    	ORA	A
+  005A'   78                    ?J015A:	MOV	A,B
+  005B'   1F                    	RAR
+  005C'   47                    	MOV	B,A
+  005D'   79                    	MOV	A,C
+  005E'   1F                    	RAR
+  005F'   4F                    	MOV	C,A
+  0060'   F5                    	PUSH	PSW
+  0061'   1D                    	DCR	E
+  0062'   CA 0069'              	JZ	?J0169
+  0065'   F1                    	POP	PSW
+  0066'   C3 005A'              	JMP	?J015A
+                                
+                                ; What difference with ?J0142 ???
+                                
+  0069'   F1                    ?J0169:	POP	PSW
+  006A'   69                    	MOV	L,C
+  006B'   60                    	MOV	H,B
+  006C'   C9                    	RET
+                                
+  006D'                         bp95@:
+  006D'   B7                    	ORA	A
+  006E'   79                    ?J016E:	MOV	A,C
+  006F'   1F                    	RAR
+  0070'   4F                    	MOV	C,A
+  0071'   F5                    	PUSH	PSW
+  0072'   1D                    	DCR	E
+  0073'   CA 007A'              	JZ	?J017A
+  0076'   F1                    	POP	PSW
+  0077'   C3 006E'              	JMP	?J016E
+                                ;
+  007A'   F1                    ?J017A:	POP	PSW
+  007B'   79                    	MOV	A,C
+  007C'   6F                    	MOV	L,A
+  007D'   26 00                 	MVI	H,00H
+  007F'   C9                    	RET
+                                
+                                ;--------------------------------
+  0080'                         bp55@:
+  0080'   EB                    	XCHG
+  0081'   6F                    	MOV	L,A
+  0082'   26 00                 	MVI	H,00H
+  0084'   EB                    	XCHG
+  0085'   CD 0350'              	CALL	bp87@
+  0088'   7D                    	MOV	A,L
+  0089'   C9                    	RET
+                                
+                                ;--------------------------------
+  008A'                         bp12@:
+  008A'   78                    	MOV	A,B
+  008B'   B1                    	ORA	C
+  008C'   C8                    	RZ
+	MACRO-80 3.44	09-Dec-81	PAGE	1-3
+
+
+  008D'   16 0A                 	MVI	D,0AH		; 10
+  008F'   C3 0092'              ?J018F:	JMP	?J0192
+                                
+                                ; Yes, you are not dreaming...
+                                ; The above line jumps to... next line...
+                                
+  0092'   15                    ?J0192:	DCR	D
+  0093'   C2 008F'              	JNZ	?J018F
+  0096'   0B                    	DCX	B
+  0097'   C3 008A'              	JMP	bp12@
+                                
+                                ; ??? (Was probably the RET of above code.)
+                                
+  009A'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; Jump table. (Why here?)
+                                
+  009B'                         bp57@:
+  009B'   C3 018E'              	JMP	bp41@
+                                
+  009E'                         bp58@:
+  009E'   C3 0196'              	JMP	bp42@
+                                
+  00A1'                         bp59@:
+  00A1'   C3 0199'              	JMP	bp43@
+                                
+  00A4'                         bp60@:
+  00A4'   C3 019E'              	JMP	bp44@
+                                
+  00A7'                         bp61@:
+  00A7'   C3 01A1'              	JMP	bp45@
+                                
+                                ;--------------------------------
+  00AA'                         init@:
+  00AA'   EB                    	XCHG
+  00AB'   2A 0006               	LHLD	CPMADR
+  00AE'   F9                    	SPHL
+  00AF'   EB                    	XCHG
+  00B0'   E9                    	PCHL
+                                
+  00B1'                         EXIT@:
+  00B1'   F3                    	DI
+  00B2'   C3 0000               	JMP	Reboot
+                                
+                                ;--------------------------------
+  00B5'                         bp79@:
+  00B5'   7B                    	MOV	A,E
+  00B6'   95                    	SUB	L
+  00B7'   6F                    	MOV	L,A
+  00B8'   7A                    	MOV	A,D
+  00B9'   9C                    	SBB	H
+  00BA'   67                    	MOV	H,A
+  00BB'   7D                    	MOV	A,L
+  00BC'   C9                    	RET
+                                
+	MACRO-80 3.44	09-Dec-81	PAGE	1-4
+
+
+                                ;--------------------------------
+  00BD'                         bp10@:
+  00BD'   60                    	MOV	H,B
+  00BE'   69                    	MOV	L,C
+  00BF'   B7                    ?J01BF:	ORA	A
+  00C0'   7C                    	MOV	A,H
+  00C1'   1F                    	RAR
+  00C2'   67                    	MOV	H,A
+  00C3'   7D                    	MOV	A,L
+  00C4'   1F                    	RAR
+  00C5'   6F                    	MOV	L,A
+  00C6'   1D                    	DCR	E
+  00C7'   C2 00BF'              	JNZ	?J01BF
+  00CA'   C9                    	RET
+                                
+                                ;--------------------------------
+  00CB'                         bp15@:
+  00CB'   79                    	MOV	A,C
+  00CC'   27                    	DAA
+  00CD'   6F                    	MOV	L,A
+  00CE'   26 00                 	MVI	H,00H
+  00D0'   C9                    	RET
+                                
+                                ;--------------------------------
+  00D1'                         bp16@:
+  00D1'   DA 00D9'              	JC	?J01D9
+  00D4'   3E 00                 	MVI	A,00H
+  00D6'   C3 00DB'              	JMP	?J01DB
+                                
+  00D9'   3E FF                 ?J01D9:	MVI	A,0FFH
+  00DB'   6F                    ?J01DB:	MOV	L,A
+  00DC'   26 00                 	MVI	H,00H
+  00DE'   C9                    	RET
+                                
+                                ;--------------------------------
+  00DF'                         bp17@:
+  00DF'   CA 00E7'              	JZ	?J01E7
+  00E2'   3E 00                 	MVI	A,00H
+  00E4'   C3 00E9'              	JMP	?J01E9
+                                
+  00E7'   3E FF                 ?J01E7:	MVI	A,0FFH
+  00E9'   6F                    ?J01E9:	MOV	L,A
+  00EA'   26 00                 	MVI	H,00H
+  00EC'   C9                    	RET
+                                
+                                ;--------------------------------
+  00ED'                         bp18@:
+  00ED'   FA 00F5'              	JM	?J01F5
+  00F0'   3E 00                 	MVI	A,00H
+  00F2'   C3 00F7'              	JMP	?J01F7
+                                
+  00F5'   3E FF                 ?J01F5:	MVI	A,0FFH
+  00F7'   6F                    ?J01F7:	MOV	L,A
+  00F8'   26 00                 	MVI	H,00H
+  00FA'   C9                    	RET
+                                
+	MACRO-80 3.44	09-Dec-81	PAGE	1-5
+
+
+                                ;--------------------------------
+  00FB'                         bp19@:
+  00FB'   EA 0103'              	JPE	?J0203
+  00FE'   3E 00                 	MVI	A,00H
+  0100'   C3 0105'              	JMP	?J0205
+                                
+  0103'   3E FF                 ?J0203:	MVI	A,0FFH
+  0105'   6F                    ?J0205:	MOV	L,A
+  0106'   26 00                 	MVI	H,00H
+  0108'   C9                    	RET
+                                
+                                ;--------------------------------
+  0109'                         bp25@:
+  0109'   85                    	ADD	L
+  010A'   6F                    	MOV	L,A
+  010B'   26 00                 	MVI	H,00H
+  010D'   C9                    	RET
+                                
+                                ;--------------------------------
+  010E'                         bp26@:
+  010E'   B5                    	ORA	L
+  010F'   6F                    	MOV	L,A
+  0110'   26 00                 	MVI	H,00H
+  0112'   C9                    	RET
+                                
+                                ;--------------------------------
+  0113'                         bp27@:
+  0113'   A5                    	ANA	L
+  0114'   6F                    	MOV	L,A
+  0115'   26 00                 	MVI	H,00H
+  0117'   C9                    	RET
+                                
+                                ;--------------------------------
+  0118'                         bp28@:
+  0118'   AD                    	XRA	L
+  0119'   6F                    	MOV	L,A
+  011A'   26 00                 	MVI	H,00H
+  011C'   C9                    	RET
+                                
+                                ;--------------------------------
+  011D'                         bp29@:
+  011D'   8D                    	ADC	L
+  011E'   6F                    	MOV	L,A
+  011F'   26 00                 	MVI	H,00H
+  0121'   C9                    	RET
+                                
+                                ;--------------------------------
+  0122'                         bp30@:
+  0122'   9D                    	SBB	L
+  0123'   6F                    	MOV	L,A
+  0124'   26 00                 	MVI	H,00H
+  0126'   C9                    	RET
+                                
+                                ;--------------------------------
+  0127'                         bp31@:
+  0127'   95                    	SUB	L
+	MACRO-80 3.44	09-Dec-81	PAGE	1-6
+
+
+  0128'   6F                    	MOV	L,A
+  0129'   26 00                 	MVI	H,00H
+  012B'   C9                    	RET
+                                
+                                ;--------------------------------
+  012C'                         bp32@:
+  012C'   95                    	SUB	L
+  012D'   D6 01                 	SUI	01H		; 1
+  012F'   9F                    	SBB	A
+  0130'   6F                    	MOV	L,A
+  0131'   26 00                 	MVI	H,00H
+  0133'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; Out of sequence. TWICE the same code...
+                                ;--------------------------------
+  0134'                         bp67@:
+  0134'   4F                    	MOV	C,A
+  0135'   7D                    	MOV	A,L
+  0136'   91                    	SUB	C
+  0137'   6F                    	MOV	L,A
+  0138'   7C                    	MOV	A,H
+  0139'   DE 00                 	SBI	00H
+  013B'   B5                    	ORA	L
+  013C'   D6 01                 	SUI	01H		; 1
+  013E'   9F                    	SBB	A
+  013F'   2F                    	CMA
+  0140'   6F                    	MOV	L,A
+  0141'   26 00                 	MVI	H,00H
+  0143'   C9                    	RET
+                                
+                                ;--------------------------------
+  0144'                         bp33@:
+  0144'   95                    	SUB	L
+  0145'   9F                    	SBB	A
+  0146'   6F                    	MOV	L,A
+  0147'   26 00                 	MVI	H,00H
+  0149'   C9                    	RET
+                                
+                                ;--------------------------------
+  014A'                         bp34@:
+  014A'   67                    	MOV	H,A
+  014B'   7D                    	MOV	A,L
+  014C'   94                    	SUB	H
+  014D'   9F                    	SBB	A
+  014E'   6F                    	MOV	L,A
+  014F'   26 00                 	MVI	H,00H
+  0151'   C9                    	RET
+                                
+                                ;--------------------------------
+  0152'                         bp35@:
+  0152'   95                    	SUB	L
+  0153'   D6 01                 	SUI	01H		; 1
+  0155'   9F                    	SBB	A
+  0156'   2F                    	CMA
+  0157'   6F                    	MOV	L,A
+	MACRO-80 3.44	09-Dec-81	PAGE	1-7
+
+
+  0158'   26 00                 	MVI	H,00H
+  015A'   C9                    	RET
+                                
+                                ;--------------------------------
+  015B'                         bp36@:
+  015B'   67                    	MOV	H,A
+  015C'   7D                    	MOV	A,L
+  015D'   94                    	SUB	H
+  015E'   9F                    	SBB	A
+  015F'   2F                    	CMA
+  0160'   6F                    	MOV	L,A
+  0161'   26 00                 	MVI	H,00H
+  0163'   C9                    	RET
+                                
+                                ;--------------------------------
+  0164'                         bp37@:
+  0164'   95                    	SUB	L
+  0165'   9F                    	SBB	A
+  0166'   2F                    	CMA
+  0167'   6F                    	MOV	L,A
+  0168'   26 00                 	MVI	H,00H
+  016A'   C9                    	RET
+                                
+                                ;--------------------------------
+  016B'                         bp38@:
+  016B'   5D                    	MOV	E,L
+  016C'   16 00                 	MVI	D,00H
+  016E'   6F                    	MOV	L,A
+  016F'   26 00                 	MVI	H,00H
+  0171'   CD 0332'              	CALL	bp86@
+  0174'   7D                    	MOV	A,L
+  0175'   C9                    	RET
+                                
+                                ;--------------------------------
+  0176'                         bp39@:
+  0176'   5D                    	MOV	E,L
+  0177'   16 00                 	MVI	D,00H
+  0179'   6F                    	MOV	L,A
+  017A'   26 00                 	MVI	H,00H
+  017C'   EB                    	XCHG
+  017D'   CD 0350'              	CALL	bp87@
+  0180'   7D                    	MOV	A,L
+  0181'   C9                    	RET
+                                
+                                ;--------------------------------
+  0182'                         bp40@:
+  0182'   5D                    	MOV	E,L
+  0183'   16 00                 	MVI	D,00H
+  0185'   6F                    	MOV	L,A
+  0186'   26 00                 	MVI	H,00H
+  0188'   EB                    	XCHG
+  0189'   CD 0359'              	CALL	bp88@
+  018C'   7D                    	MOV	A,L
+  018D'   C9                    	RET
+                                
+                                ;--------------------------------
+	MACRO-80 3.44	09-Dec-81	PAGE	1-8
+
+
+  018E'                         bp41@:
+  018E'   85                    	ADD	L
+  018F'   6F                    	MOV	L,A
+  0190'   7C                    	MOV	A,H
+  0191'   CE 00                 	ACI	00H
+  0193'   67                    	MOV	H,A
+  0194'   7D                    	MOV	A,L
+  0195'   C9                    	RET
+                                
+                                ;--------------------------------
+  0196'                         bp42@:
+  0196'   B5                    	ORA	L
+  0197'   6F                    	MOV	L,A
+  0198'   C9                    	RET
+                                
+                                ;--------------------------------
+  0199'                         bp43@:
+  0199'   A5                    	ANA	L
+  019A'   6F                    	MOV	L,A
+  019B'   26 00                 	MVI	H,00H
+  019D'   C9                    	RET
+                                
+                                ;--------------------------------
+  019E'                         bp44@:
+  019E'   AD                    	XRA	L
+  019F'   6F                    	MOV	L,A
+  01A0'   C9                    	RET
+                                
+                                ;--------------------------------
+  01A1'                         bp45@:
+  01A1'   8D                    	ADC	L
+  01A2'   6F                    	MOV	L,A
+  01A3'   7C                    	MOV	A,H
+  01A4'   CE 00                 	ACI	00H
+  01A6'   67                    	MOV	H,A
+  01A7'   7D                    	MOV	A,L
+  01A8'   C9                    	RET
+                                
+                                ;--------------------------------
+  01A9'                         bp46@:
+  01A9'   9D                    	SBB	L
+  01AA'   6F                    	MOV	L,A
+  01AB'   3E 00                 	MVI	A,00H
+  01AD'   9C                    	SBB	H
+  01AE'   67                    	MOV	H,A
+  01AF'   7D                    	MOV	A,L
+  01B0'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; BP47@ is after BP56@...
+                                ;--------------------------------
+  01B1'                         bp48@:
+  01B1'   95                    	SUB	L
+  01B2'   6F                    	MOV	L,A
+  01B3'   3E 00                 	MVI	A,00H
+  01B5'   9C                    	SBB	H
+	MACRO-80 3.44	09-Dec-81	PAGE	1-9
+
+
+  01B6'   B5                    	ORA	L
+  01B7'   D6 01                 	SUI	01H		; 1
+  01B9'   9F                    	SBB	A
+  01BA'   6F                    	MOV	L,A
+  01BB'   26 00                 	MVI	H,00H
+  01BD'   C9                    	RET
+                                
+                                ;--------------------------------
+  01BE'                         bp49@:
+  01BE'   95                    	SUB	L
+  01BF'   6F                    	MOV	L,A
+  01C0'   3E 00                 	MVI	A,00H
+  01C2'   9C                    	SBB	H
+  01C3'   9F                    	SBB	A
+  01C4'   6F                    	MOV	L,A
+  01C5'   26 00                 	MVI	H,00H
+  01C7'   C9                    	RET
+                                
+                                ;--------------------------------
+  01C8'                         bp50@:
+  01C8'   95                    	SUB	L
+  01C9'   6F                    	MOV	L,A
+  01CA'   3E 00                 	MVI	A,00H
+  01CC'   9C                    	SBB	H
+  01CD'   3F                    	CMC
+  01CE'   D2 01D6'              	JNC	?M02D6
+  01D1'   B5                    	ORA	L
+  01D2'   CA 01D6'              	JZ	?M02D6
+  01D5'   37                    	STC
+  01D6'   9F                    ?M02D6:	SBB	A
+  01D7'   6F                    	MOV	L,A
+  01D8'   26 00                 	MVI	H,00H
+  01DA'   C9                    	RET
+                                
+                                ;--------------------------------
+  01DB'                         bp51@:
+  01DB'   95                    	SUB	L
+  01DC'   6F                    	MOV	L,A
+  01DD'   3E 00                 	MVI	A,00H
+  01DF'   9C                    	SBB	H
+  01E0'   67                    	MOV	H,A
+  01E1'   B5                    	ORA	L
+  01E2'   D6 01                 	SUI	01H		; 1
+  01E4'   9F                    	SBB	A
+  01E5'   2F                    	CMA
+  01E6'   6F                    	MOV	L,A
+  01E7'   26 00                 	MVI	H,00H
+  01E9'   C9                    	RET
+                                
+                                ;--------------------------------
+  01EA'                         bp52@:
+  01EA'   95                    	SUB	L
+  01EB'   6F                    	MOV	L,A
+  01EC'   3E 00                 	MVI	A,00H
+  01EE'   9C                    	SBB	H
+  01EF'   3F                    	CMC
+	MACRO-80 3.44	09-Dec-81	PAGE	1-10
+
+
+  01F0'   D2 01F8'              	JNC	?M02F8
+  01F3'   B5                    	ORA	L
+  01F4'   CA 01F8'              	JZ	?M02F8
+  01F7'   37                    	STC
+  01F8'   9F                    ?M02F8:	SBB	A
+  01F9'   2F                    	CMA
+  01FA'   6F                    	MOV	L,A
+  01FB'   26 00                 	MVI	H,00H
+  01FD'   C9                    	RET
+                                
+                                ;--------------------------------
+  01FE'                         bp53@:
+  01FE'   95                    	SUB	L
+  01FF'   6F                    	MOV	L,A
+  0200'   3E 00                 	MVI	A,00H
+  0202'   9C                    	SBB	H
+  0203'   9F                    	SBB	A
+  0204'   2F                    	CMA
+  0205'   6F                    	MOV	L,A
+  0206'   26 00                 	MVI	H,00H
+  0208'   C9                    	RET
+                                
+                                ;--------------------------------
+  0209'                         bp54@:
+  0209'   EB                    	XCHG
+  020A'   6F                    	MOV	L,A
+  020B'   26 00                 	MVI	H,00H
+  020D'   CD 0332'              	CALL	bp86@
+  0210'   7D                    	MOV	A,L
+  0211'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; BP55@ is at the beginning...
+                                ;--------------------------------
+  0212'                         bp56@:
+  0212'   EB                    	XCHG
+  0213'   6F                    	MOV	L,A
+  0214'   26 00                 	MVI	H,00H
+  0216'   EB                    	XCHG
+  0217'   CD 0359'              	CALL	bp88@
+  021A'   7D                    	MOV	A,L
+  021B'   C9                    	RET
+                                
+                                ;--------------------------------
+  021C'                         bp47@:
+  021C'   95                    	SUB	L
+  021D'   6F                    	MOV	L,A
+  021E'   3E 00                 	MVI	A,00H
+  0220'   9C                    	SBB	H
+  0221'   67                    	MOV	H,A
+  0222'   7D                    	MOV	A,L
+  0223'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; Jump from BP56@ to BP62@...
+                                ;--------------------------------
+	MACRO-80 3.44	09-Dec-81	PAGE	1-11
+
+
+  0224'                         bp62@:
+  0224'   4F                    	MOV	C,A
+  0225'   7D                    	MOV	A,L
+  0226'   99                    	SBB	C
+  0227'   6F                    	MOV	L,A
+  0228'   7C                    	MOV	A,H
+  0229'   DE 00                 	SBI	00H
+  022B'   67                    	MOV	H,A
+  022C'   7D                    	MOV	A,L
+  022D'   C9                    	RET
+                                
+                                ;--------------------------------
+  022E'                         bp63@:
+  022E'   4F                    	MOV	C,A
+  022F'   7D                    	MOV	A,L
+  0230'   91                    	SUB	C
+  0231'   6F                    	MOV	L,A
+  0232'   7C                    	MOV	A,H
+  0233'   DE 00                 	SBI	00H
+  0235'   67                    	MOV	H,A
+  0236'   7D                    	MOV	A,L
+  0237'   C9                    	RET
+                                
+                                ;--------------------------------
+  0238'                         bp64@:
+  0238'   4F                    	MOV	C,A
+  0239'   7D                    	MOV	A,L
+  023A'   91                    	SUB	C
+  023B'   6F                    	MOV	L,A
+  023C'   7C                    	MOV	A,H
+  023D'   DE 00                 	SBI	00H
+  023F'   B5                    	ORA	L
+  0240'   D6 01                 	SUI	01H		; 1
+  0242'   9F                    	SBB	A
+  0243'   6F                    	MOV	L,A
+  0244'   26 00                 	MVI	H,00H
+  0246'   C9                    	RET
+                                
+                                ;--------------------------------
+  0247'                         bp65@:
+  0247'   4F                    	MOV	C,A
+  0248'   7D                    	MOV	A,L
+  0249'   91                    	SUB	C
+  024A'   7C                    	MOV	A,H
+  024B'   DE 00                 	SBI	00H
+  024D'   9F                    	SBB	A
+  024E'   6F                    	MOV	L,A
+  024F'   26 00                 	MVI	H,00H
+  0251'   C9                    	RET
+                                
+                                ;--------------------------------
+  0252'                         bp66@:
+  0252'   4F                    	MOV	C,A
+  0253'   7D                    	MOV	A,L
+  0254'   91                    	SUB	C
+  0255'   6F                    	MOV	L,A
+	MACRO-80 3.44	09-Dec-81	PAGE	1-12
+
+
+  0256'   7C                    	MOV	A,H
+  0257'   DE 00                 	SBI	00H
+  0259'   3F                    	CMC
+  025A'   D2 0262'              	JNC	?M0362
+  025D'   B5                    	ORA	L
+  025E'   CA 0262'              	JZ	?M0362
+  0261'   37                    	STC
+  0262'   9F                    ?M0362:	SBB	A
+  0263'   6F                    	MOV	L,A
+  0264'   26 00                 	MVI	H,00H
+  0266'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; TWICE??
+                                ; (BP67@ is between BP32@ and BP33@...)
+                                ; (and this is the same code...)
+                                ; bp67b@:
+  0267'   4F                    	MOV	C,A
+  0268'   7D                    	MOV	A,L
+  0269'   91                    	SUB	C
+  026A'   6F                    	MOV	L,A
+  026B'   7C                    	MOV	A,H
+  026C'   DE 00                 	SBI	00H
+  026E'   B5                    	ORA	L
+  026F'   D6 01                 	SUI	01H		; 1
+  0271'   9F                    	SBB	A
+  0272'   2F                    	CMA
+  0273'   6F                    	MOV	L,A
+  0274'   26 00                 	MVI	H,00H
+  0276'   C9                    	RET
+                                
+                                ;--------------------------------
+  0277'                         bp68@:
+  0277'   4F                    	MOV	C,A
+  0278'   7D                    	MOV	A,L
+  0279'   91                    	SUB	C
+  027A'   6F                    	MOV	L,A
+  027B'   7C                    	MOV	A,H
+  027C'   DE 00                 	SBI	00H
+  027E'   3F                    	CMC
+  027F'   D2 0287'              	JNC	?M0387
+  0282'   B5                    	ORA	L
+  0283'   CA 0287'              	JZ	?M0387
+  0286'   37                    	STC
+  0287'   9F                    ?M0387:	SBB	A
+  0288'   2F                    	CMA
+  0289'   6F                    	MOV	L,A
+  028A'   26 00                 	MVI	H,00H
+  028C'   C9                    	RET
+                                
+                                ;--------------------------------
+  028D'                         bp69@:
+  028D'   4F                    	MOV	C,A
+  028E'   7D                    	MOV	A,L
+  028F'   91                    	SUB	C
+  0290'   7C                    	MOV	A,H
+	MACRO-80 3.44	09-Dec-81	PAGE	1-13
+
+
+  0291'   DE 00                 	SBI	00H
+  0293'   9F                    	SBB	A
+  0294'   2F                    	CMA
+  0295'   6F                    	MOV	L,A
+  0296'   26 00                 	MVI	H,00H
+  0298'   C9                    	RET
+                                
+                                ;--------------------------------
+  0299'                         bp70@:
+  0299'   5F                    	MOV	E,A
+  029A'   16 00                 	MVI	D,00H
+  029C'   CD 0332'              	CALL	bp86@
+  029F'   7D                    	MOV	A,L
+  02A0'   C9                    	RET
+                                
+                                ;--------------------------------
+  02A1'                         bp71@:
+  02A1'   5F                    	MOV	E,A
+  02A2'   16 00                 	MVI	D,00H
+  02A4'   EB                    	XCHG
+  02A5'   CD 0350'              	CALL	bp87@
+  02A8'   7D                    	MOV	A,L
+  02A9'   C9                    	RET
+                                
+                                ;--------------------------------
+  02AA'                         bp72@:
+  02AA'   5F                    	MOV	E,A
+  02AB'   16 00                 	MVI	D,00H
+  02AD'   EB                    	XCHG
+  02AE'   CD 0359'              	CALL	bp88@
+  02B1'   7D                    	MOV	A,L
+  02B2'   C9                    	RET
+                                
+                                ;--------------------------------
+  02B3'                         bp73@:
+  02B3'   19                    	DAD	D
+  02B4'   7D                    	MOV	A,L
+  02B5'   C9                    	RET
+                                
+  02B6'                         bp74@:
+  02B6'   7C                    	MOV	A,H
+  02B7'   B2                    	ORA	D
+  02B8'   67                    	MOV	H,A
+  02B9'   7D                    	MOV	A,L
+  02BA'   B3                    	ORA	E
+  02BB'   6F                    	MOV	L,A
+  02BC'   C9                    	RET
+                                
+                                ;--------------------------------
+  02BD'                         bp75@:
+  02BD'   7C                    	MOV	A,H
+  02BE'   A2                    	ANA	D
+  02BF'   67                    	MOV	H,A
+  02C0'   7D                    	MOV	A,L
+  02C1'   A3                    	ANA	E
+  02C2'   6F                    	MOV	L,A
+	MACRO-80 3.44	09-Dec-81	PAGE	1-14
+
+
+  02C3'   C9                    	RET
+                                
+  02C4'                         bp76@:
+  02C4'   7C                    	MOV	A,H
+  02C5'   AA                    	XRA	D
+  02C6'   67                    	MOV	H,A
+  02C7'   7D                    	MOV	A,L
+  02C8'   AB                    	XRA	E
+  02C9'   6F                    	MOV	L,A
+  02CA'   C9                    	RET
+                                
+  02CB'                         bp77@:
+  02CB'   7D                    	MOV	A,L
+  02CC'   8B                    	ADC	E
+  02CD'   6F                    	MOV	L,A
+  02CE'   7C                    	MOV	A,H
+  02CF'   8A                    	ADC	D
+  02D0'   67                    	MOV	H,A
+  02D1'   7D                    	MOV	A,L
+  02D2'   C9                    	RET
+                                
+  02D3'                         bp78@:
+  02D3'   7B                    	MOV	A,E
+  02D4'   9D                    	SBB	L
+  02D5'   6F                    	MOV	L,A
+  02D6'   7A                    	MOV	A,D
+  02D7'   9C                    	SBB	H
+  02D8'   67                    	MOV	H,A
+  02D9'   7D                    	MOV	A,L
+  02DA'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; BP79@ is at the beginning...
+                                ;--------------------------------
+  02DB'                         bp80@:
+  02DB'   7B                    	MOV	A,E
+  02DC'   95                    	SUB	L
+  02DD'   6F                    	MOV	L,A
+  02DE'   7A                    	MOV	A,D
+  02DF'   9C                    	SBB	H
+  02E0'   B5                    	ORA	L
+  02E1'   D6 01                 	SUI	01H		; 1
+  02E3'   9F                    	SBB	A
+  02E4'   6F                    	MOV	L,A
+  02E5'   26 00                 	MVI	H,00H
+  02E7'   C9                    	RET
+                                
+                                ;--------------------------------
+  02E8'                         bp81@:
+  02E8'   7B                    	MOV	A,E
+  02E9'   95                    	SUB	L
+  02EA'   6F                    	MOV	L,A
+  02EB'   7A                    	MOV	A,D
+  02EC'   9C                    	SBB	H
+  02ED'   9F                    	SBB	A
+  02EE'   6F                    	MOV	L,A
+	MACRO-80 3.44	09-Dec-81	PAGE	1-15
+
+
+  02EF'   26 00                 	MVI	H,00H
+  02F1'   C9                    	RET
+                                
+                                ;--------------------------------
+  02F2'                         bp82@:
+  02F2'   7B                    	MOV	A,E
+  02F3'   95                    	SUB	L
+  02F4'   6F                    	MOV	L,A
+  02F5'   7A                    	MOV	A,D
+  02F6'   9C                    	SBB	H
+  02F7'   3F                    	CMC
+  02F8'   D2 0300'              	JNC	?M0400
+  02FB'   B5                    	ORA	L
+  02FC'   CA 0300'              	JZ	?M0400
+  02FF'   37                    	STC
+  0300'   9F                    ?M0400:	SBB	A
+  0301'   6F                    	MOV	L,A
+  0302'   26 00                 	MVI	H,00H
+  0304'   C9                    	RET
+                                
+                                ;--------------------------------
+  0305'                         bp83@:
+  0305'   7B                    	MOV	A,E
+  0306'   95                    	SUB	L
+  0307'   6F                    	MOV	L,A
+  0308'   7A                    	MOV	A,D
+  0309'   9C                    	SBB	H
+  030A'   B5                    	ORA	L
+  030B'   D6 01                 	SUI	01H		; 1
+  030D'   9F                    	SBB	A
+  030E'   2F                    	CMA
+  030F'   6F                    	MOV	L,A
+  0310'   26 00                 	MVI	H,00H
+  0312'   C9                    	RET
+                                
+                                ;--------------------------------
+  0313'                         bp84@:
+  0313'   7B                    	MOV	A,E
+  0314'   95                    	SUB	L
+  0315'   6F                    	MOV	L,A
+  0316'   7A                    	MOV	A,D
+  0317'   9C                    	SBB	H
+  0318'   3F                    	CMC
+  0319'   D2 0321'              	JNC	?M0421
+  031C'   B5                    	ORA	L
+  031D'   CA 0321'              	JZ	?M0421
+  0320'   37                    	STC
+  0321'   9F                    ?M0421:	SBB	A
+  0322'   2F                    	CMA
+  0323'   6F                    	MOV	L,A
+  0324'   26 00                 	MVI	H,00H
+  0326'   C9                    	RET
+                                
+                                ;--------------------------------
+  0327'                         bp85@:
+  0327'   7B                    	MOV	A,E
+	MACRO-80 3.44	09-Dec-81	PAGE	1-16
+
+
+  0328'   95                    	SUB	L
+  0329'   6F                    	MOV	L,A
+  032A'   7A                    	MOV	A,D
+  032B'   9C                    	SBB	H
+  032C'   9F                    	SBB	A
+  032D'   2F                    	CMA
+  032E'   6F                    	MOV	L,A
+  032F'   26 00                 	MVI	H,00H
+  0331'   C9                    	RET
+                                
+                                ;--------------------------------
+  0332'                         bp86@:
+  0332'   44                    	MOV	B,H
+  0333'   4D                    	MOV	C,L
+  0334'   21 0000               	LXI	H,0000H
+  0337'   3E F0                 	MVI	A,0F0H
+  0339'   F5                    ?J0439:	PUSH	PSW
+  033A'   29                    	DAD	H
+  033B'   7B                    	MOV	A,E
+  033C'   17                    	RAL
+  033D'   5F                    	MOV	E,A
+  033E'   7A                    	MOV	A,D
+  033F'   17                    	RAL
+  0340'   57                    	MOV	D,A
+  0341'   D2 0349'              	JNC	?M0449
+  0344'   09                    	DAD	B
+  0345'   D2 0349'              	JNC	?M0449
+  0348'   13                    	INX	D
+  0349'   F1                    ?M0449:	POP	PSW
+  034A'   3C                    	INR	A
+  034B'   FA 0339'              	JM	?J0439
+  034E'   7D                    	MOV	A,L
+  034F'   C9                    	RET
+                                
+                                ;--------------------------------
+  0350'                         bp87@:
+  0350'   EB                    	XCHG
+  0351'   42                    	MOV	B,D
+  0352'   4B                    	MOV	C,E
+  0353'   CD 0361'              	CALL	Co0461
+  0356'   EB                    	XCHG
+  0357'   7D                    	MOV	A,L
+  0358'   C9                    	RET
+                                
+  0359'                         bp88@:
+  0359'   EB                    	XCHG
+  035A'   42                    	MOV	B,D
+  035B'   4B                    	MOV	C,E
+  035C'   CD 0361'              	CALL	Co0461
+  035F'   7D                    	MOV	A,L
+  0360'   C9                    	RET
+                                
+  0361'   11 0000               Co0461:	LXI	D,0000H
+  0364'   CD 0387'              	CALL	C$0487
+  0367'   EB                    	XCHG
+  0368'   3E F0                 	MVI	A,0F0H
+	MACRO-80 3.44	09-Dec-81	PAGE	1-17
+
+
+  036A'   F5                    ?J046A:	PUSH	PSW
+  036B'   29                    	DAD	H
+  036C'   1F                    	RAR
+  036D'   EB                    	XCHG
+  036E'   29                    	DAD	H
+  036F'   EB                    	XCHG
+  0370'   D2 0374'              	JNC	?J0474
+  0373'   23                    	INX	H
+  0374'   17                    ?J0474:	RAL
+  0375'   DA 037F'              	JC	?J047F
+  0378'   7D                    	MOV	A,L
+  0379'   81                    	ADD	C
+  037A'   7C                    	MOV	A,H
+  037B'   88                    	ADC	B
+  037C'   D2 0381'              	JNC	?J0481
+  037F'   09                    ?J047F:	DAD	B
+  0380'   13                    	INX	D
+  0381'   F1                    ?J0481:	POP	PSW
+  0382'   3C                    	INR	A
+  0383'   FA 036A'              	JM	?J046A
+  0386'   C9                    	RET
+                                
+  0387'   0B                    C$0487:	DCX	B
+  0388'   79                    	MOV	A,C
+  0389'   2F                    	CMA
+  038A'   4F                    	MOV	C,A
+  038B'   78                    	MOV	A,B
+  038C'   2F                    	CMA
+  038D'   47                    	MOV	B,A
+  038E'   C9                    	RET
+                                
+                                ;--------------------------------
+                                ; Jump from BP88@ to BP04@...
+                                ;--------------------------------
+  038F'                         bp04@:
+  038F'   79                    	MOV	A,C
+  0390'   6F                    	MOV	L,A
+  0391'   26 00                 	MVI	H,00H
+  0393'   C9                    	RET
+                                
+                                ;--------------------------------
+  0394'                         bp05@:
+  0394'   78                    	MOV	A,B
+  0395'   6F                    	MOV	L,A
+  0396'   26 00                 	MVI	H,00H
+  0398'   C9                    	RET
+                                
+                                ;--------------------------------
+  0399'                         bp06@:
+  0399'   60                    	MOV	H,B
+  039A'   69                    	MOV	L,C
+  039B'   7D                    	MOV	A,L
+  039C'   C9                    	RET
+                                
+                                ;--------------------------------
+  039D'                         bp07@:
+	MACRO-80 3.44	09-Dec-81	PAGE	1-18
+
+
+  039D'   79                    	MOV	A,C
+  039E'   07                    ?J049E:	RLC
+  039F'   1D                    	DCR	E
+  03A0'   C2 039E'              	JNZ	?J049E
+  03A3'   6F                    	MOV	L,A
+  03A4'   26 00                 	MVI	H,00H
+  03A6'   C9                    	RET
+                                
+                                ;--------------------------------
+  03A7'                         bp08@:
+  03A7'   79                    	MOV	A,C
+  03A8'   0F                    ?J04A8:	RRC
+  03A9'   1D                    	DCR	E
+  03AA'   C2 03A8'              	JNZ	?J04A8
+  03AD'   6F                    	MOV	L,A
+  03AE'   26 00                 	MVI	H,00H
+  03B0'   C9                    	RET
+                                
+                                ;--------------------------------
+  03B1'                         bp89@:
+  03B1'   D1                    	POP	D
+  03B2'   29                    	DAD	H
+  03B3'   19                    	DAD	D
+  03B4'   7E                    	MOV	A,M
+  03B5'   23                    	INX	H
+  03B6'   66                    	MOV	H,M
+  03B7'   6F                    	MOV	L,A
+  03B8'   E9                    	PCHL
+                                
+                                ;--------------------------------
+                                
+                                	END			; Standard CP/M RELocatable file
+	MACRO-80 3.44	09-Dec-81	PAGE	S
+
+
+Macros:
+
+Symbols:
+0018'	?J0118          0027'	?J0127          0033'	?J0133          
+0042'	?J0142          0047'	?J0147          0053'	?J0153          
+005A'	?J015A          0069'	?J0169          006E'	?J016E          
+007A'	?J017A          008F'	?J018F          0092'	?J0192          
+00BF'	?J01BF          00D9'	?J01D9          00DB'	?J01DB          
+00E7'	?J01E7          00E9'	?J01E9          00F5'	?J01F5          
+00F7'	?J01F7          0103'	?J0203          0105'	?J0205          
+0339'	?J0439          036A'	?J046A          0374'	?J0474          
+037F'	?J047F          0381'	?J0481          039E'	?J049E          
+03A8'	?J04A8          01D6'	?M02D6          01F8'	?M02F8          
+0262'	?M0362          0287'	?M0387          0300'	?M0400          
+0321'	?M0421          0349'	?M0449          038F'	BP04@           
+0394'	BP05@           0399'	BP06@           039D'	BP07@           
+03A7'	BP08@           0016'	BP09@           00BD'	BP10@           
+0025'	BP11@           008A'	BP12@           0032'	BP13@           
+0059'	BP14@           00CB'	BP15@           00D1'	BP16@           
+00DF'	BP17@           00ED'	BP18@           00FB'	BP19@           
+0109'	BP25@           010E'	BP26@           0113'	BP27@           
+0118'	BP28@           011D'	BP29@           0122'	BP30@           
+0127'	BP31@           012C'	BP32@           0144'	BP33@           
+014A'	BP34@           0152'	BP35@           015B'	BP36@           
+0164'	BP37@           016B'	BP38@           0176'	BP39@           
+0182'	BP40@           018E'	BP41@           0196'	BP42@           
+0199'	BP43@           019E'	BP44@           01A1'	BP45@           
+01A9'	BP46@           021C'	BP47@           01B1'	BP48@           
+01BE'	BP49@           01C8'	BP50@           01DB'	BP51@           
+01EA'	BP52@           01FE'	BP53@           0209'	BP54@           
+0080'	BP55@           0212'	BP56@           009B'	BP57@           
+009E'	BP58@           00A1'	BP59@           00A4'	BP60@           
+00A7'	BP61@           0224'	BP62@           022E'	BP63@           
+0238'	BP64@           0247'	BP65@           0252'	BP66@           
+0134'	BP67@           0277'	BP68@           028D'	BP69@           
+0299'	BP70@           02A1'	BP71@           02AA'	BP72@           
+02B3'	BP73@           02B6'	BP74@           02BD'	BP75@           
+02C4'	BP76@           02CB'	BP77@           02D3'	BP78@           
+00B5'	BP79@           02DB'	BP80@           02E8'	BP81@           
+02F2'	BP82@           0305'	BP83@           0313'	BP84@           
+0327'	BP85@           0332'	BP86@           0350'	BP87@           
+0359'	BP88@           03B1'	BP89@           0000'	BP90@           
+0008'	BP91@           0001'	BP92@           000F'	BP93@           
+001F'	BP94@           006D'	BP95@           0046'	BP96@           
+0387'	C$0487          0361'	CO0461          0006 	CPMADR          
+00B1'	EXIT@           00AA'	INIT@           0000 	REBOOT          
+
+
+
+No Fatal error(s)
+
+
+    
+0

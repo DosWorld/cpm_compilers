@@ -1,0 +1,88 @@
+/*
+   app name can't be a register name like E. M80 generates bad code if so.
+   So use EAPP instead.
+*/
+
+EAPP: DO;
+
+/* these utilities taken from simpleio.src and fixed / improved */
+
+BDOS1: PROCEDURE (FUNC,PARM) BYTE EXTERNAL; /* gets RegA */
+    DECLARE FUNC BYTE;                      /* goes to RegC */
+    DECLARE PARM ADDRESS;                   /* goes to RegDE */
+END BDOS1;
+
+WR$CON: PROCEDURE (CHAR);
+    DECLARE CHAR  BYTE;
+    CALL BDOS1( 2, CHAR );
+END WR$CON;
+
+PRT$DOLLAR: PROCEDURE (ADRS);
+    DECLARE ADRS ADDRESS;
+    CALL BDOS1( 9, ADRS );
+END PRT$DOLLAR;
+
+PRT$CRLF: PROCEDURE;
+    CALL WR$CON( 13 );
+    CALL WR$CON( 10 );
+END PRT$CRLF;
+
+/*
+   the version in simpleio.src has a bug junk left over
+   in S from a prior call is printed.
+*/
+PRT$NUM: PROCEDURE( N );
+    DECLARE N ADDRESS;
+    DECLARE S( 5 ) BYTE INITIAL( ' ', ' ', ' ', ' ', '0' );
+    DECLARE ( I,J ) BYTE;
+    I = 4;
+    DO WHILE N > 0;
+        J = N MOD 10 + '0';
+        N = N / 10;
+        S( I ) = J;
+        I = I - 1;
+    END;
+    DO I = 0 TO 4;
+        IF S( I ) <> ' ' THEN DO;
+            CALL WR$CON( S( I ) );
+            S( I ) = ' ';
+        END;
+    END;
+END PRT$NUM;
+
+DECLARE DIGITS LITERALLY '200';
+DECLARE ARRAY( DIGITS ) ADDRESS;
+
+FINDE: PROCEDURE;
+    DECLARE ( HIGH, N, X ) ADDRESS;
+
+    HIGH = DIGITS;
+    X = 0;
+    DO N = 2 TO DIGITS - 1;
+        ARRAY( N ) = 1;
+    END;
+
+    ARRAY( 0 ) = 0;
+    ARRAY( 1 ) = 2;
+
+    DO WHILE HIGH > 9;
+        HIGH = HIGH - 1;
+        N = HIGH;
+        DO WHILE N <> 0;
+            ARRAY( N ) = X MOD N;
+            X = 10 * ARRAY( N - 1 ) + X / N;
+            N = N - 1;
+        END;
+
+        CALL PRT$NUM( X );
+    END;
+
+    CALl PRT$DOLLAR( .( 13, 10, 'done', 13, 10, '$' ) );
+END FINDE;
+
+DO;
+    CALL FINDE;
+END;
+
+END EAPP;
+

@@ -1,0 +1,14 @@
+;do not include the .SRC extension in param source filename
+era $1.com
+era $1.ram
+era $1.rom
+era $1.tok
+era $1.rel
+era $1.mac
+era $1.prn
+era $1.sym
+plmx $1 ;C+L+
+m80 =$1
+link $1,BDOSCALL,RLIB[S]
+$1
+                                                                                                    

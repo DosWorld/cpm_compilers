@@ -1,0 +1,77 @@
+/* simple recursion test that fails with plmx because the compiler doesn't support REENTRANT */
+
+FACT: DO;
+
+/* these utilities taken from simpleio.src and fixed / improved */
+
+BDOS1: PROCEDURE (FUNC,PARM) BYTE EXTERNAL; /* gets RegA */
+    DECLARE FUNC BYTE;                      /* goes to RegC */
+    DECLARE PARM ADDRESS;                   /* goes to RegDE */
+END BDOS1;
+
+WR$CON: PROCEDURE (CHAR);
+    DECLARE CHAR  BYTE;
+    CALL BDOS1( 2, CHAR );
+END WR$CON;
+
+PRT$DOLLAR: PROCEDURE (ADRS);
+    DECLARE ADRS ADDRESS;
+    CALL BDOS1( 9, ADRS );
+END PRT$DOLLAR;
+
+PRT$CRLF: PROCEDURE;
+    CALL WR$CON( 13 );
+    CALL WR$CON( 10 );
+END PRT$CRLF;
+
+/*
+   the version in simpleio.src has a bug junk left over
+   in S from a prior call is printed.
+*/
+PRT$NUM: PROCEDURE( N );
+    DECLARE N ADDRESS;
+    DECLARE S( 5 ) BYTE INITIAL( ' ', ' ', ' ', ' ', '0' );
+    DECLARE ( I,J ) BYTE;
+    I = 4;
+    DO WHILE N > 0;
+        J = N MOD 10 + '0';
+        N = N / 10;
+        S( I ) = J;
+        I = I - 1;
+    END;
+    DO I = 0 TO 4;
+        IF S( I ) <> ' ' THEN DO;
+            CALL WR$CON( S( I ) );
+            S( I ) = ' ';
+        END;
+    END;
+END PRT$NUM;
+
+/*
+    this FAILS to work properly:
+      with REENTRANT enabled the assembler fails.
+      with REENTRANT disabled the code doesn't work.
+*/
+
+PROCFACT: PROCEDURE( X ) ADDRESS REENTRANT;
+    DECLARE X ADDRESS;
+
+    CALL PRT$NUM( X );
+    CALL PRT$CRLF;
+
+    IF ( X = 0 ) THEN RETURN 0;
+
+    IF ( X = 1 ) THEN RETURN 1;
+
+    RETURN X * PROCFACT( X - 1 );
+END PROCFACT;
+
+DO;
+    DECLARE V ADDRESS;
+
+    V = PROCFACT( 5 );
+    CALl PRT$DOLLAR( .( 'back from procfact', 13, 10, '$' ) );
+    CALL PRT$NUM( V );
+END;
+
+END FACT;
