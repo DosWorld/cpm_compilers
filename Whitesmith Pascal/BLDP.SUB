@@ -1,0 +1,2 @@
+lnk -u_main -eb__memory -tb0x100 -htr -o ptc.com crtx.o ptclib.80 libc.80
+

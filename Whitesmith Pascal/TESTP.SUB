@@ -1,0 +1,9 @@
+ptc -o rom.tm0 roman
+cpp -x -o rom.tm1 rom.tm0
+cp1 -cem -b0 -n8 -u -o rom.tm2 rom.tm1
+cp2 -o rom.s rom.tm2
+era rom.tm*
+a80 -o rom.o rom.s
+lnk -u_main -eb__memory -tb0x100 -htr -o rom.com crtx.o rom.o libp.80 libc.80
+rom
+                     
