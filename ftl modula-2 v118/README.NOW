@@ -1,0 +1,105 @@
+			V1.18 Release Notice
+			====================
+
+			Note on initializers in FTL
+
+Error message number 76 "initialization error" occurs when attempting
+to use an initializer in a procedure.  Initializers are not standard Modula-2
+and FTL does not allow them except in the declaration section of a module.
+
+			UNLOAD2
+
+UNLOAD2.COM is provided to convert files into Intel .HEX format, as used by
+ROM burners.  To use, type: "UNLOAD2 Myfile.com", <return>.  Unload will do
+the rest.
+
+
+Release 1.18 bug fixes and added features:
+
+The editor now allows you to use the first letter of a menu option to
+select that option.
+
+			Range Checks
+
+There is a new compiler flag /R.  This flag allows you to include range 
+checks in your module.  In addition, while active, checks
+are performed for integer and cardinal arithmetic overflows.
+
+You can turn the checking code on and off using the psuedo-comments 
+(*$R+*) and (*$R-*) respectively.  You can use these instead of or as well 
+as the /R compiler flag.
+
+The new linker flag, "/O", omits all range checking.
+Thus, once your program is working, you can re-link without the checking
+code without re-compiling.
+
+When a range error or an integer or cardinal overflow is detected, you will
+receive the message:
+	out of range near xxxx
+
+where xxxx is the address of the error. In a later version, we will provide
+a link between this error checking and M2DEBUG. You can use the LINKER /R
+flag to determine approximately where the error is, or you can run the
+program in trace mode using M2DEBUG to find the error.
+
+There is also a new error message in the compiler:
+
+147	Constant out of range.
+
+This error is produced when you attempt to use a constant for a subrange
+and the constant is not in the subrange. For example:
+
+TYPE	Subr=[0..10];
+VAR	s:Subr;
+	a:ARRAY Subr OF CARDINAL;
+	i:CARDINAL;
+	s:=11;
+	a[11]:=0;
+
+Both these statements would produce error 147.
+
+
+Note that the checking is for range errors, not just array bound errors,
+so that the statement:
+
+	i:=11;
+	s:=i;
+
+would produce an out of range error.  But, no check is made when the 
+value cannot be out of range.  Hence:
+
+	a[s]:=0;
+
+produces no checking code because s is of type Subr and so its value must
+be within the bounds of the array.  Of course, if it is undefined, then it
+may have a bad value but this will not be detected here.  To catch these
+errors, use the /U compiler flag.  If you use /U instead of /R, the
+compiler ignores that a particular value 'has' to be in range 
+and generates check code anyway.  You CANNOT use (*$U+*) or (*$U-*).
+Instead, use (*$R+*) and (*$R-*) to turn off checking in either case--once
+you have selected /U on the compiler line (eg "M2 Prog.mod/U"), then
+undefined checking will always be on whenever checking is enabled.
+
+Of course, using /U increases the size of your modules compared to /R.  /R
+gives larger modules than no checking.  You can mix checked and unchecked
+modules in a given link, so you only need check those modules you are
+working on.
+
+If you use the /T option on the link edit, then all traps for bound errors
+and integer and cardinal overflows will be directed to the debug module
+M2DEBUG (which you must run before the program being debugged--it will
+terminate and stay resident).  This allows you to get a traceback of where
+you are without having to watch the number fly by.  Use CTRL-A to gain the 
+attention of M2DEBUG and then disable all tracing.  Of course, you must use
+both the R and T compiler flags for this to be useful.
+
+.SYM files are now in a library called SYMFILES.LBR, which must be on one of
+the searched disks (set by SETSEARC.COM).  A free standing SYM file will be
+used in preference to one contained in SYMFILES.LBR.
+There is a limit of 48 .SYM files to the library.
+
+PROCESSEs has been updated to support mode 2 interrupts.
+See that module for details.
+
+			--Dave Moore
+
