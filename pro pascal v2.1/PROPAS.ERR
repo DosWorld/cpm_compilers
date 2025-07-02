@@ -1,0 +1,151 @@
+001Simple type expected
+002Identifier expected
+003PROGRAM or SEGMENT expected
+004) expected
+005: expected
+006Symbol illegal in this context
+007Error in parameter list
+008OF expected
+009( expected
+010Error in type
+011[ expected
+012] expected
+013END expected
+014; expected
+015Integer expected
+016= expected
+017BEGIN expected
+018Error in declaration part
+019Error in field-list
+020, expected
+021. expected
+022.. expected
+024Illegal source character
+025One identifier may not follow another
+049No cases in case statement
+050Error in constant
+051:= expected
+052THEN expected
+053UNTIL expected
+054DO expected
+055TO or DOWNTO expected
+058Error in factor
+059Error in variable
+101Identifier declared twice
+102Low bound exceeds high bound
+103Identifier is not of appropriate class
+104Identifier has not been declared
+105Sign not allowed
+106Number expected
+107Incompatible subrange types
+108File not allowed here
+109Type must not be real
+110Tagfield type must be ordinal type
+111Incompatible with tagfield type
+113Index type must be ordinal type
+114Base type exceeds set range
+115Base type of set must be ordinal type
+116Bad parameter type for standard procedure
+117Unsatisfied forward reference
+119Repetition of parameter list not allowed
+120Function type may be scalar/subrange/pointer
+121File value parameter not allowed
+122Repetition of result type not allowed
+123Function declaration with no result type
+124Second width parameter is for reals only
+125Bad parameter type for standard function
+126No. of parameters differs from declaration
+127Illegal variable parameter
+128Functional-parameter's type is incorrect
+129Operand types incompatible
+130Expression is not of set type
+131Tests on equality allowed only
+132Strict set inclusion not allowed
+133Relational operation not allowed
+134Illegal type of operand(s)
+135Type of operand must be boolean
+136Set element type must be ordinal type
+137Set element types not compatible
+138Type of variable is not array
+139Index type incompatible with declaration
+140Type of variable is not record
+141Type of variable must be file or pointer
+142Incompatible parameter type
+143Illegal type of loop control variable
+144Illegal type of expression
+145Incompatible type
+146Assignment of files is not allowed
+147Case-constant of invalid type
+148Subrange bounds must be ordinal type
+149Index- or tag-type must not be integer
+150Standard function name not allowed here
+151Assignment to formal function is illegal
+152No such field in this record
+154Actual parameter must be a variable
+155Control variable must be local to block
+156Multidefined case label
+157Too many cases in case statement
+158No corresponding variant declaration
+159Real or string case-constant not allowed
+160Previous declaration was not FORWARD
+161Already declared as FORWARD
+162Error in record structure
+163Missing variant(s) in declaration
+164Standard procedure/function not allowed here
+165Multidefined label
+166Multideclared label
+167Undeclared label
+168Undefined label
+175Missing file 'input' in program heading
+176Missing file 'output' in program heading
+177Assignment to function not allowed here
+178Multidefined record variant
+179Control variable is not secure
+180Control variable must not be formal
+181Attempt to alter control variable
+182Label value out of range
+183Label jumped to from an illegal position
+184GOTO: label is not accessible
+201Error in real constant: digit expected
+202String constant exceeds source line
+203Integer constant too large
+205Null string not allowed
+207Error in hex constant
+208Constant not properly terminated
+209Exponent of real constant out of range
+250Too many nested scopes of identifiers
+251Too deep nesting of procedures/functions
+252Too deep nesting of FOR/WITH statements
+253Too deep nesting of source file inserts
+261Compiler update-stack overflow
+263Too many COMMON names
+270Static data area exceeds 64K bytes
+271Stack requirement exceeds 32K bytes
+272Code area exceeds 64K bytes
+301No case provided for this value
+302Index expression out of bounds
+304Set element expression out of range
+305Warning: FOR loop will never be executed
+306Range error
+308Case-constant outside range of tag-type
+310String size must be integer constant
+311String length exceeded
+320Incompatible parameter-lists
+322Undeclared FORWARD procedure or function
+323Identifier referenced before declaration
+324No value assigned to function
+325Variable referenced but never defined
+330Source insert filename illegal/not found
+333End of source file encountered
+349COMMON declaration not allowed here
+350Illegal SEGMENT structure
+351COMMON name not unique in 7 characters
+352EXTERNAL name not unique in 7 characters
+353Entry name not unique in 7 characters
+380eof on compiler work file
+381eof on compiler work file
+382Compiler work file contents invalid
+386Compiler work file contents invalid
+398Pro Pascal implementation restriction
+399Pro Pascal extension to Standard
+

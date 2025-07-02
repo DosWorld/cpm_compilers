@@ -1,0 +1,173 @@
+	TITLE	ProPascal housekeeping library (1)
+;
+	NAME	('H1LIB')
+;
+;	Date	16 February 1986
+;
+;	Copyright (C) 1981,1982   Prospero Software
+;
+;	This module contains the routines for initialising
+;	stack and heap, and establishing the files INPUT
+;	and OUTPUT, at program startup.
+;
+;
+	.Z80
+;
+	ENTRY	$HINIT
+	ENTRY	$GVAIL,$GROVR
+	ENTRY	$FNSEQ,$HCPMV
+	ENTRY	$MEMRY,$INIX,$PFLAG
+	ENTRY	$DFCB,$DDMA
+	ENTRY	$DCLN,$DNLGT,$DSLFL
+;
+;
+	EXT	$FINIO,$HALOC
+	EXT	$HPLM,$FACT,$HERAD
+	EXT	$BDOS,$DPRST,$OWNER
+;
+;
+;	===============
+;
+;
+BASE	EQU	0		; CP/M base address
+BDOS	EQU	BASE+5		; for initial SP value
+DEFCB	EQU	BASE+5CH	; default FCB
+DEFBUF	EQU	BASE+80H	; default buffer
+FINDVN	EQU	0CH		; find CP/M version number
+SETDMA	EQU	1AH		; "set DMA" code
+;
+;
+	COMMON /$INOUT/
+INPUT:	DS	2		; standard files "input" ..
+OUTPUT:	DS	2		; .. and "output"
+;
+;
+;	Console input buffer
+;
+CONMAX	EQU	80
+;
+	COMMON /$FLNB/
+CONBUF:	DS	CONMAX+2
+;
+;
+	DSEG
+$GVAIL:
+GAVLNK:	DS	2
+GAVSIZ:	DS	2
+;
+$GROVR:	DS	2
+;
+$INIX:	DS	2		; IX value at outer level
+;
+$FNSEQ:	DS	2		; for sequential file naming
+;
+$HCPMV:	DS	2		; for CP/M version number
+;
+$DFCB:	DS	2		; address of "default FCB"
+$DDMA:	DS	2		; address of "default buffer"
+;				 (other library modules refer to
+;				  the contents of these variables)
+;
+$DCLN:	DS	2		; source line number
+$DNLGT:	DS	2		; for non-local GOTO
+$DSLFL:	DS	1		; flag source line facility active
+;
+;
+;	===================
+;
+;
+	CSEG
+;
+;
+$MEMRY:	DW	0		; filled in by linker
+$PFLAG:	DB	1		; 1 = Pascal main program
+;
+;
+;
+;	Routine	$HINIT		Initial program startup.
+;
+;	Calling sequence is:
+;		LD	HL,$+6
+;		JP	$HINIT
+;
+NIL	EQU	80H
+;
+;
+;
+$HINIT:
+	LD	SP,(BDOS+1)		; set SP
+;
+	LD	B,6			; start of BDOS is 6 bytes
+DECSP:	DEC	SP			; .. below entry address
+	DJNZ	DECSP
+;
+	PUSH	HL			; link for return
+	LD	($HERAD),HL
+;
+	LD	IX,128
+	ADD	IX,SP			; IX for program
+	LD	($INIX),IX
+;
+	LD	HL,NULSUB	; address of null subroutine ..
+	LD	($OWNER),HL	; .. into "own error" ..
+	LD	($DPRST),HL	; .. "print line numbers" ..
+	LD	($DNLGT),HL	; .. and "non-local GOTO"
+;
+;	Initialise heap
+;
+	LD	HL,($MEMRY)
+	LD	($HPLM),HL
+;
+	LD	BC,0
+	CALL	$HALOC		; to initialise $STKLM
+;
+	LD	HL,0
+	LD	(GAVSIZ),HL	; "gavail.size := 0"
+;
+	LD	HL,NIL
+	LD	(GAVLNK),HL	; "gavail.link := NIL"
+;
+	LD	HL,$GVAIL
+	LD	($GROVR),HL	; "grover := addr(gavail)"
+;
+;	"Input" and "Output"
+;
+	LD	HL,0
+	LD	(INPUT),HL
+	LD	(OUTPUT),HL
+	LD	($FACT),HL	; for chain of active files
+;
+	LD	($FNSEQ),HL	; file name sequence
+	LD	($DCLN),HL	; source line number
+;
+	CALL	$FINIO		; initialise standard files
+;
+	XOR	A
+	LD	($DSLFL),A
+;
+	LD	HL,CONMAX	; console buffer: put max reply ..
+	LD	(CONBUF),HL	; .. and zero in first two bytes
+;
+	LD	C,FINDVN	; find CP/M version
+	CALL	$BDOS
+	LD	L,1		; for CP/M 1.x
+	CP	20H
+	JR	C,FVN2
+	INC	L		; for CP/M 2.x
+FVN2:	LD	($HCPMV),HL
+;
+	LD	HL,DEFCB	; set address of default FCB ..
+	LD	($DFCB),HL	; .. in $DFCB
+;
+	LD	C,SETDMA	; set "DMA address" to ..
+	LD	DE,DEFBUF	; default buffer at base+80H
+	LD	($DDMA),DE	; note value in $DDMA
+	CALL	$BDOS
+;
+NULSUB:
+	RET
+;
+;
+	END
+
+
