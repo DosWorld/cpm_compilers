@@ -1,0 +1,385 @@
+   1	program desk;
+   2	{ Modifications by Gerald McMullon }
+   3	CONST
+   4	 fieldreal = 10;  precision = 4;
+   5	 pi        = 3.141592746;
+   6	 deg       = 180;
+   7	 radix     = 10;
+   8	 maxscale  = 20;  maxlinelen = 80;
+   9	 blank     = ' '; comma      = ',';   semicolon = ';';
+  10	 point     = '.'; plus       = '+';   minus     = '-';
+  11	 multply   = '*'; divide     = '/';   marker    = '^';
+  12	 zero      = '0'; nine       = '9';   question  = '?';
+  13	 leftparen = '('; rightparen = ')';
+  14	TYPE
+  15	 charset   = SET OF CHAR;
+  16	 position  = 0..maxlinelen;
+  17	 six       = PACKED ARRAY[1..6] OF CHAR;
+  18	VAR
+  19	 nextchar             : CHAR;
+  20	 nextposchar          : position;
+  21	 invrad,maxreal,
+  22	 result,prevresult    : REAL;
+  23	 validset,
+  24	 digits,addingops,
+  25	 multops,terminators  : charset;
+  26	 memory               : ARRAY[zero..nine] OF REAL;
+  27	
+  28	PROCEDURE readchar;
+  29	BEGIN
+  30	  REPEAT
+  31	   IF eof THEN nextchar := semicolon
+  32	          ELSE IF eoln THEN BEGIN
+  33	                             nextposchar := 1;
+  34	                             nextchar    := comma;
+  35	                             readln;
+  36	                            END
+  37	                       ELSE BEGIN
+  38	                             nextposchar := succ(nextposchar);
+  39	                             read(nextchar);
+  40	                            END;
+  41	  UNTIL nextchar <> blank;
+  42	END;   { readchar }
+  43	
+  44	PROCEDURE reporterror;
+  45	 BEGIN
+  46	  writeln(marker:nextposchar);
+  47	  WHILE NOT (nextchar IN terminators) DO
+  48	        readchar;
+  49	 END;  { reporterror }
+  50	
+  51	FUNCTION errorfunction(fname : six): REAL;
+  52	 BEGIN
+  53	  writeln(fname,' out of range.');
+  54	  WHILE NOT (nextchar IN terminators) DO
+  55	        readchar;
+  56	  errorfunction := 0;
+  57	 END;
+  58	
+  59	FUNCTION tan(x : REAL): REAL;
+  60	 VAR y : REAL;
+  61	 BEGIN
+  62	  y := cos(x);
+  63	  IF y=0 THEN tan:= errorfunction('  tan ')
+  64	         ELSE tan:= sin(x)/y;
+  65	 END;
+  66	
+  67	FUNCTION arcsin(x: REAL): REAL;
+  68	 CONST
+  69	  epsilon = 1.0E-8;    { machine and language dependant }
+  70	 VAR func1, func, term, n : REAL;
+  71	 BEGIN
+  72	  IF abs(x)>1 THEN arcsin := errorfunction('arcsin')
+  73	  ELSE IF x=1 THEN arcsin := pi/2
+  74	              ELSE IF x=0 THEN arcsin := 0
+  75	                   ELSE BEGIN
+  76	                         term   := x;
+  77	                         n      := 1;
+  78	                         func   := x;
+  79	                         REPEAT
+  80	                          func1 := func;
+  81	                          term  := sqr(x)*term*n/(n+1);
+  82	                          n     := n+2;
+  83	                          func  := func + term/n;
+  84	                         UNTIL abs((func-func1)/func) < epsilon;
+  85	                         arcsin := func;
+  86	                        END;
+  87	  END;   { function arcsin }
+  88	
+  89	FUNCTION arccos(x : REAL): REAL;
+  90	 BEGIN
+  91	  arccos := pi/2 - arcsin(x);
+  92	 END;    { function arccos }
+  93	
+  94	FUNCTION expo(x : REAL ): REAL;
+  95	 BEGIN
+  96	  IF abs(x) < (maxreal- 1.0E-4)
+  97	     THEN expo := exp(x)
+  98	     ELSE expo := errorfunction('   exp');
+  99	 END;   {some versions of Pascal return exp(89) as 0}
+ 100	
+ 101	FUNCTION sinh(x: REAL): REAL;
+ 102	 VAR y : REAL;
+ 103	 BEGIN
+ 104	  y := expo(x);
+ 105	  IF y = 0 THEN sinh := 0
+ 106	           ELSE sinh := (y-1/y)/2;
+ 107	 END;   { function sinh }
+ 108	
+ 109	FUNCTION cosh(x : REAL): REAL;
+ 110	 VAR y : REAL;
+ 111	 BEGIN
+ 112	  y := expo(x);
+ 113	  IF y = 0 THEN cosh := 0
+ 114	           ELSE cosh := (y+1/y)/2;
+ 115	 END;   { function cosh }
+ 116	
+ 117	FUNCTION tanh(x : REAL): REAL;
+ 118	 VAR y : REAL;
+ 119	 BEGIN
+ 120	  IF (abs(x) < maxreal/2)
+ 121	  THEN BEGIN
+ 122	        y:= sqr(expo(x));
+ 123	        tanh := (y-1)/(y+1);
+ 124	       END
+ 125	   ELSE tanh := 1;
+ 126	 END;  { function tanh }
+ 127	
+ 128	PROCEDURE displaymemory;
+ 129	 VAR count      : zero..nine;
+ 130	 PROCEDURE show;
+ 131	  BEGIN
+ 132	   IF (abs(memory[count])>1.0E-4) AND (abs(memory[count])<1.0E+7)
+ 133	   THEN write('M',count,blank,memory[count]:fieldreal:precision)
+ 134	   ELSE write('M',count,blank,memory[count]);
+ 135	  END;
+ 136	
+ 137	 BEGIN
+ 138	  readln;
+ 139	  writeln(chr(31),'Memory');
+ 140	  FOR count := zero TO nine DO
+ 141	      BEGIN
+ 142	       show;
+ 143	       writeln;
+ 144	      END;  { format in pairs using screen cursor ?? }
+ 145	END;  { displaymemory }
+ 146	
+ 147	PROCEDURE clearmemory;
+ 148	 VAR count : zero..nine;
+ 149	 BEGIN
+ 150	  FOR count := zero TO nine DO
+ 151	      memory[count] := 0;
+ 152	 END;  { clearmemory }
+ 153	
+ 154	PROCEDURE listfunctions;
+ 155	
+ 156	BEGIN
+ 157	  writeln(chr(31));   { clear screen }
+ 158	  writeln(blank:10,'Scientific desk calculator');
+ 159	                      { select RAM characters then select ROM ??}
+ 160	  writeln('The following functions are allowed :- ');
+ 161	  writeln('four rules of arithmetic +,-,*,/       pi = ',
+ 162	           pi:fieldreal:precision,point);
+ 163	  write('d toggles between degrees and radians, currently set in ');
+ 164	  IF invrad > 0.9 THEN writeln('radians.')
+ 165	                  ELSE writeln('degrees.');
+ 166	  writeln('p        the previous result.        ',
+ 167	          'm0 to m9 the memory stores 0 to 9    ');
+ 168	  writeln('r0 to r9 the memory retrival 0 to 9. ',
+ 169	          'ml       a list of the memory store. ');
+ 170	  writeln('sqr( . ) the square of a number.     ',
+ 171	          'sqrt( . )the square root of a number.');
+ 172	  writeln('exp( . ) the exponential of a number.',
+ 173	          'ln( . )  the natural log of a number.');
+ 174	  writeln('sin( . ) the sine of a number.       ',
+ 175	          'arcsin(.)the inverse of sine.        ');
+ 176	  writeln('cos( . ) the cosine of a number.     ',
+ 177	          'arccos(.)the inverse of cosine.      ');
+ 178	  writeln('tan( . ) the tangent of a number.    ',
+ 179	          'arctan(.)the inverse of tangent.     ');
+ 180	  writeln('sinh( . ) hyperbolic sine.           ',
+ 181	          'cosh( . ) hyperbolic cosine.         ');
+ 182	  writeln('tanh( . ) hyperbolic tangent.        ');
+ 183	  readln;
+ 184	  nextposchar := 1;
+ 185	END;
+ 186	
+ 187	PROCEDURE readnumber(VAR numvalue : REAL);
+ 188	TYPE
+ 189	 scalefactor = 0..maxscale;
+ 190	VAR
+ 191	 count, scale : scalefactor;
+ 192	BEGIN
+ 193	 numvalue := 0;
+ 194	 WHILE nextchar IN digits DO
+ 195	       BEGIN
+ 196	        numvalue := radix*numvalue+ ord(nextchar)-ord(zero);
+ 197	        readchar;
+ 198	       END;  { WHILE }
+ 199	 IF nextchar = point
+ 200	    THEN BEGIN
+ 201	          readchar;
+ 202	          scale  := 0;
+ 203	          WHILE nextchar IN digits DO
+ 204	                BEGIN
+ 205	                 numvalue := radix*numvalue+ord(nextchar)-ord(zero);
+ 206	                 readchar;
+ 207	                 scale    := succ(scale);
+ 208	                END;  { WHILE }
+ 209	           FOR count := 1 TO scale DO
+ 210	               numvalue := numvalue/radix;
+ 211	          END;
+ 212	END;  { readnumber }
+ 213	
+ 214	PROCEDURE readexpression(VAR expvalue : REAL);
+ 215	 VAR
+ 216	  addop       : CHAR;
+ 217	  nexttermval : REAL;
+ 218	 PROCEDURE readterm(VAR termvalue : REAL);
+ 219	  VAR
+ 220	   mulop       : CHAR;
+ 221	   nextfacval  : REAL;
+ 222	  PROCEDURE readfactor(VAR factorvalue : REAL);
+ 223	
+ 224	   PROCEDURE getfunction(VAR factorvalue : REAL);
+ 225	    VAR
+ 226	     fname    : six;
+ 227	     i        : 0..6;
+ 228	    BEGIN
+ 229	     i := 0;
+ 230	     fname := '      ';
+ 231	     REPEAT
+ 232	      i := succ(i);
+ 233	      fname[i] := nextchar;
+ 234	      readchar;
+ 235	     UNTIL (i=6) OR (nextchar= leftparen);
+ 236	     IF nextchar = leftparen THEN readfactor(factorvalue)
+ 237	        ELSE BEGIN
+ 238	              reporterror;
+ 239	              factorvalue := 0;
+ 240	             END;
+ 241	     IF fname = 'sin   ' THEN factorvalue:=sin(factorvalue*invrad)
+ 242	        ELSE IF fname='cos   ' THEN factorvalue:=cos(factorvalue*invrad)
+ 243	        ELSE IF fname='tan   ' THEN factorvalue:=tan(factorvalue*invrad)
+ 244	        ELSE IF fname='exp   ' THEN factorvalue:=expo(factorvalue)
+ 245	        ELSE IF fname='ln    ' THEN factorvalue:=    ln(factorvalue)
+ 246	        ELSE IF fname='sqr   ' THEN factorvalue:=   sqr(factorvalue)
+ 247	        ELSE IF fname='sqrt  ' THEN factorvalue:=  sqrt(factorvalue)
+ 248	        ELSE IF fname='arctan' THEN factorvalue:=arctan(factorvalue)/invrad
+ 249	        ELSE IF fname='arcsin' THEN factorvalue:=arcsin(factorvalue)/invrad
+ 250	        ELSE IF fname='arccos' THEN factorvalue:=arccos(factorvalue)/invrad
+ 251	        ELSE IF fname='sinh  ' THEN factorvalue:=  sinh(factorvalue)
+ 252	        ELSE IF fname='cosh  ' THEN factorvalue:=  cosh(factorvalue)
+ 253	        ELSE IF fname='tanh  ' THEN factorvalue:=  tanh(factorvalue)
+ 254	        ELSE BEGIN
+ 255	              reporterror;
+ 256	              factorvalue := 0;
+ 257	             END;
+ 258	    END;  { getfunction }
+ 259	
+ 260	    BEGIN  { readfactor }
+ 261	     IF nextchar IN validset THEN
+ 262	     CASE nextchar OF
+ 263	      zero,'1','2','3','4','5','6','7','8',nine
+ 264	     {zero..nine} : readnumber(factorvalue);
+ 265	      'p','P'     : BEGIN
+ 266	                     readchar;
+ 267	                     IF (nextchar IN ['i','I'])
+ 268	                        THEN BEGIN
+ 269	                              factorvalue := pi;
+ 270	                              readchar;
+ 271	                             END
+ 272	                        ELSE factorvalue := prevresult;
+ 273	                    END;
+ 274	      'm','M'     : BEGIN
+ 275	                     readchar;
+ 276	                     IF nextchar IN [zero..nine,'l','L','c','C']
+ 277	                     THEN CASE nextchar OF
+ 278	                           zero,'1','2','3','4','5','6','7','8',nine
+ 279	                                     : BEGIN
+ 280	                                        memory[nextchar]:= prevresult;
+ 281	                                        readchar;
+ 282	                                        IF (nextchar IN terminators)
+ 283	                                           THEN nextchar := question;
+ 284	                                       END;
+ 285	                            'l','L'  : BEGIN
+ 286	                                        displaymemory;
+ 287	                                        nextposchar := 1;
+ 288	                                        nextchar    := question;
+ 289	                                       END;
+ 290	                            'c','C'  : BEGIN
+ 291	                                        clearmemory;
+ 292	                                        readchar;
+ 293	                                       END;
+ 294	                           END { CASE }
+ 295	                     ELSE reporterror;
+ 296	                    END;
+ 297	      'r','R'     : BEGIN
+ 298	                     readchar;
+ 299	                     IF (nextchar IN digits)
+ 300	                        THEN factorvalue := memory[nextchar]
+ 301	                        ELSE reporterror;
+ 302	                     readchar;
+ 303	                    END;
+ 304	       leftparen  : BEGIN
+ 305	                     readchar;
+ 306	                     readexpression(factorvalue);
+ 307	                     IF nextchar = rightparen
+ 308	                        THEN readchar
+ 309	                        ELSE reporterror;
+ 310	                    END;
+ 311	       'd','D'    : BEGIN
+ 312	                     IF invrad > 0.9 THEN invrad := pi/deg
+ 313	                                     ELSE invrad := 1;
+ 314	                     readln;
+ 315	                     nextposchar:= 1;
+ 316	                     nextchar   := question;
+ 317	                    END;
+ 318	        question  : listfunction;
+ 319	        'a','c','e','l','s','t': getfunction(factorvalue);
+ 320	      END  { CASE }
+ 321	      ELSE BEGIN
+ 322	            reporterror;
+ 323	            factorvalue := 0;
+ 324	           END;
+ 325	    END;   { readfactor }
+ 326	
+ 327	  BEGIN  { readterm }
+ 328	   readfactor(termvalue);
+ 329	   WHILE nextchar IN multops DO
+ 330	         BEGIN
+ 331	          mulop := nextchar;
+ 332	          readchar;
+ 333	          readfactor(nextfacval);
+ 334	          CASE mulop OF
+ 335	           multply : termvalue := termvalue*nextfacval;
+ 336	           divide  : IF nextfacval = 0
+ 337	                        THEN reporterror
+ 338	                        ELSE termvalue := termvalue/nextfacval;
+ 339	          END;  { CASE }
+ 340	         END;  { WHILE }
+ 341	   END;  { readterm }
+ 342	
+ 343	 BEGIN  { readexpression }
+ 344	  readterm(expvalue);
+ 345	  WHILE nextchar IN addingops DO
+ 346	        BEGIN
+ 347	         addop := nextchar;
+ 348	         readchar;
+ 349	         readterm(nexttermval);
+ 350	         CASE addop OF
+ 351	          plus : expvalue := expvalue + nexttermval;
+ 352	          minus: expvalue := expvalue - nexttermval;
+ 353	         END; {case }
+ 354	        END;  { WHILE }
+ 355	 END;  { readexpession }
+ 356	
+ 357	BEGIN                           { calculator }
+ 358	 digits     := [zero..nine];
+ 359	 addingops  := [plus,minus];
+ 360	 multops    := [multply,divide];
+ 361	 terminators:= [comma,semicolon];
+ 362	 validset := digits+[,'D','M','P','R','a','c','d','e','l','m','p','r',
+ 363	                         's','t',leftparen,question];
+ 364	 writeln('Calculator ready.');
+ 365	 invrad := pi/deg;
+ 366	 maxreal:= 126*ln(2);  { machine and language dependant }
+ 367	 prevresult := 0;
+ 368	 nextposchar:= 1;
+ 369	 clearmemory;
+ 370	 readchar;
+ 371	 WHILE nextchar <> semicolon DO
+ 372	   BEGIN
+ 373	    readexpression(result);
+ 374	    IF nextchar IN terminators
+ 375	       THEN BEGIN
+ 376	             IF (abs(result)>1.0E-4) AND (abs(result)<1.0E+7) OR (result=0)
+ 377	                THEN writeln(result:fieldreal:precision)
+ 378	                ELSE writeln(result);
+ 379	             prevresult := result;
+ 380	            END
+ 381	       ELSE IF nextchar <> question THEN reporterror;
+ 382	     readchar;
+ 383	    END;  { WHILE }
+ 384	END. 
+                                                                                            
