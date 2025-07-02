@@ -1,0 +1,180 @@
+(* pascal string support library *)
+
+(* written by M.G. Lehman	 *)
+
+(* Last update: 2/23/80		 *)
+
+(* (C) Copyright 1980 MT MicroSYSTEMS *)
+
+(* 
+
+	Functions included:
+
+	
+
+	seq,sne,sgt,sle,sge,sle : comparisons 
+	 =   <>  >   <   >=  <=
+
+	
+        procedure sconcat(dest,source);
+
+        procedure sdelete(str,start,#chars)
+
+	procedure sinsert(dest,source,position)
+
+
+
+*)
+
+FUNCTION SCOMP(VAR S1,S2 : STRING):INTEGER;
+(* RETURNS:
+
+	0 : S1 = S2
+	1 : S1 > S2
+	2 : S1 < S2
+
+*)
+
+VAR
+  I,J,RESULT : INTEGER;
+  C1,C2 : STRING;
+  SWAPPED : BOOLEAN;
+
+BEGIN
+
+  (* FIRST MAKE C2 THE LONGER STRING *)
+
+  IF S1.LEN > S2.LEN THEN
+    BEGIN
+      SWAPPED := TRUE;
+      C1 := S2;
+      C2 := S1;
+    END
+  ELSE
+    BEGIN
+      SWAPPED := FALSE;
+      C1 := S1;
+      C2 := S2
+    END;
+
+  IF C1.LEN = 0 THEN
+     IF C2.LEN = 0 THEN
+       BEGIN
+         SCOMP := 0;
+         EXIT
+       END;
+
+  FOR I := 1 TO C1.LEN DO
+    IF C1.VAL[I] <> C2.VAL[I] THEN
+       BEGIN
+         IF C1.VAL[I] > C2.VAL[I] THEN
+           RESULT := 1
+         ELSE
+           RESULT := 2;
+         IF SWAPPED THEN
+           IF RESULT = 2 THEN
+             RESULT := 1
+           ELSE
+             RESULT := 2;
+         SCOMP := RESULT;
+         EXIT
+       END;
+
+  IF C1.LEN = C2.LEN THEN
+    BEGIN
+      SCOMP := 0;
+      EXIT
+    END;
+
+  (* IF WE GET HERE AND THE REMAINDER OF C2 IS BLANK THEN
+     THE STRINGS ARE EQUAL. ELSE COMPARE THE LAST CHAR WITH
+     A BLANK AND RETURN *)
+
+  FOR J := C1.LEN+1 TO C2.LEN DO
+    IF C2.VAL[J] <> ' ' THEN
+      BEGIN
+        IF C2.VAL[J] > ' ' THEN
+          RESULT := 1
+        ELSE
+          RESULT := 2;
+
+        IF SWAPPED THEN
+          IF RESULT = 2 THEN
+            RESULT := 1
+          ELSE
+            RESULT := 2;
+        SCOMP := RESULT;
+
+        EXIT
+      END;
+
+  (* IF WE GET HERE THEN THEY ARE EQUAL *)
+
+  SCOMP := 0
+
+END; (* SCOMP *)
+
+(*$P*)
+
+FUNCTION SEQ(VAR S1,S2:STRING):BOOLEAN;
+BEGIN
+  SEQ := (SCOMP(S1,S2) = 0)
+END;
+
+
+FUNCTION SNE(VAR S1,S2:STRING):BOOLEAN;
+BEGIN
+  SNE := NOT(SEQ(S1,S2))
+END;
+
+
+FUNCTION SGT(VAR S1,S2:STRING):BOOLEAN;
+BEGIN
+  SGT := (SCOMP(S1,S2)=1)
+END;
+
+
+FUNCTION SLT(VAR S1,S2:STRING):BOOLEAN;
+BEGIN
+  SLT := (SCOMP(S1,S2)=2)
+END;
+
+
+FUNCTION SGE(VAR S1,S2:STRING):BOOLEAN;
+BEGIN
+  SGE := NOT(SLT(S1,S2))
+END;
+
+
+FUNCTION SLE(VAR S1,S2:STRING):BOOLEAN;
+BEGIN
+  SLE := NOT(SGT(S1,S2))
+END;
+
+
+
+PROCEDURE SCONCAT(VAR S1,S2:STRING);
+BEGIN
+  MOVE(S2.VAL[1],S1.VAL[S1.LEN+1],S2.LEN);
+  S1.LEN := S1.LEN + S2.LEN
+END;
+
+
+PROCEDURE SDELETE(VAR S1:STRING; POS,NUMCHRS:INTEGER);
+BEGIN
+  MOVE(S1.VAL[POS+NUMCHRS],S1.VAL[POS],S1.LEN-(POS-1)-NUMCHRS);
+  S1.LEN := S1.LEN - NUMCHRS
+END;
+
+
+PROCEDURE SINSERT(VAR S1,S2:STRING; POS:INTEGER);
+VAR
+  I,J:INTEGER;
+BEGIN
+  FOR I := S1.LEN DOWNTO POS DO
+    S1.VAL[I+S2.LEN] := S1.VAL[I];
+  MOVE(S2.VAL[1],S1.VAL[POS],S2.LEN);
+  S1.LEN := S1.LEN + S2.LEN
+END;
+
+

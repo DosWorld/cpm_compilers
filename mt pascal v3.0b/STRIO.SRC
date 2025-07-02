@@ -1,0 +1,63 @@
+(* STRIO - READSTR AND WRITESTR *)
+
+PROCEDURE READSTR(VAR S:STRING);
+VAR
+  I : INTEGER;
+  CH : CHAR;
+BEGIN
+  S.VAL[1] := ' ';
+  MOVE(S.VAL[1],S.VAL[2],79); (* BLANK THE STRING *)
+
+  S.LEN := 0;
+
+  REPEAT
+    READ(CH);
+    CASE CH OF
+
+    8 : (* BACKSPACE *)
+        IF S.LEN <> 0 THEN
+          BEGIN
+            S.VAL[S.LEN] := ' ';
+            S.LEN := PRED(S.LEN);
+	    WRITE(' ');
+            WRITE(CHR(8))
+          END;
+
+    $0D: (* CARRIAGE RETURN *)
+        EXIT;
+
+    $7F: (* RUBOUT *)
+        BEGIN
+          WHILE S.LEN > 0 DO
+            BEGIN
+              WRITE(CHR(8),' ',CHR(8));
+              S.LEN := S.LEN-1
+            END;
+          S.VAL[1] := ' ';
+          MOVE(S.VAL[1],S.VAL[2],79)
+        END;
+
+
+    ELSE (* POSSIBLY INSERT *)
+      IF CH >= ' ' THEN
+        BEGIN
+          S.LEN := SUCC(S.LEN);
+          S.VAL[S.LEN] := CH
+        END
+
+    END (* CASE *)
+
+  UNTIL FALSE; (* A FOREVER LOOP *)
+
+END; (* READSTR *)
+
+
+
+PROCEDURE WRITESTR(VAR S:STRING);
+VAR I:INTEGER;
+BEGIN
+  FOR I := 1 TO S.LEN DO
+    WRITE(S.VAL[I])
+END;
+
+

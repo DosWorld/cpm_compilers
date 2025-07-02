@@ -1,0 +1,47 @@
+(*	NAMEPARSER - CONVERT D:FILENAME.TYP INTO ARRAY OF CHAR	   *)
+
+PROCEDURE NAMEPARSER(VAR IN,OUT:STRING);
+
+
+
+VAR
+  I,J : INTEGER;
+
+BEGIN
+
+  OUT.LEN := 0;
+  OUT.VAL[1] := ' ';
+  MOVE(OUT.VAL[1],OUT.VAL[2],11); (* BLANK IT *)
+  OUT.VAL[1] := CHR(0); (* DEFAULT IS CURRENT DISK *)
+  I := 1;
+  J := 2;
+
+  IF IN.VAL[I+1] = ':' THEN (* DISK WAS SPECIFIED *)
+    BEGIN
+      OUT.VAL[1] := CHR(ORD(IN.VAL[1])-ORD('A'));
+      I := I + 2
+    END;
+
+  WHILE (I <= IN.LEN) AND (IN.VAL[I] <> '.') DO
+    BEGIN
+      OUT.VAL[J] := IN.VAL[I];
+      J := J + 1;
+      I := I + 1
+    END;
+
+  IF I > IN.LEN THEN
+    EXIT;
+  I := I + 1; (* SKIP . *)
+
+  J := 10; (* POINT TO EXTENSION LOCATION WITHIN ARRAY *)
+  WHILE (I <= IN.LEN) AND (J <= 12) DO
+    BEGIN
+      WRITELN(J,',',OUT.VAL[J],',',IN.VAL[I]);
+      OUT.VAL[J] := IN.VAL[I];
+      J := J + 1;
+      I := I + 1
+    END
+
+END; (* NAMEPARSER *)
+
+

@@ -1,0 +1,206 @@
+PROGRAM DBTEST;
+
+(*#######################################################*)
+(*							 *)
+CONST CPM = $5;	(* FOR TRS-80, ETC. CHANGE THIS TO $4205 *)
+      BOOT_LOC = $0;              (*CHANGE THIS TO $4200 *)
+(*							 *)
+(*#######################################################*)
+
+
+(*	PROGRAM TO DEMONSTRATE THE USE OF CP/M 2.0 RANDOM FILE
+	USAGE IN PASCAL/MT
+
+
+	Written by Michael G. Lehman
+
+
+	February 15, 1980
+
+
+	(c) Copyright 1980, MT MicroSYSTEMS
+
+	All Rights Reserved
+
+
+*)
+
+
+
+
+
+
+
+TYPE
+  STRING = RECORD (* EXACTLY 128 BYTES LONG *)
+             LEN : INTEGER;
+             VAL : PACKED ARRAY [1..126] OF CHAR
+           END;
+
+  COMMAND = (RD,WR,QUIT);
+
+
+VAR
+
+  DATA : STRING;
+  CMD  : CHAR;
+  RECNUM : INTEGER;
+  RESULT : INTEGER;
+
+  F : FILE;		(* RANDOM ACCESS FILE FCB *)
+
+  T : STRING;
+  TITLE : PACKED ARRAY [0..11] OF CHAR; (* FOR OPEN/CREATE ETC *)
+
+PROCEDURE CHECK_VERSION; (* CHECK TO MAKE SURE WE HAVE CP/M VERSION 2 *)
+CONST GET_VSN = 12;
+
+VAR
+  VERSION : INTEGER;
+
+  PROCEDURE EXTERNAL[CPM] BDOS(FUNC:INTEGER);
+  PROCEDURE EXTERNAL[BOOT_LOC] REBOOT;
+
+BEGIN
+
+  BDOS(GET_VSN);
+  INLINE("MOV L,A /
+         "MVI H   / 0 /
+         "SHLD    / VERSION);
+
+  IF VERSION < $20 THEN
+    BEGIN
+      WRITELN('YOU MUST HAVE CP/M 2 OR MP/M TO RUN THIS PROGRAM');
+      REBOOT
+    END
+
+END; (* CHECK_VERSION *)
+
+
+(*$I STRIO*)		(* READSTR, WRITESTR *)
+
+(*$I FILESTUF*) 	(* NAMEPARSER *)
+
+FUNCTION GET_COMMAND : INTEGER;
+BEGIN
+  REPEAT
+    WRITE('R)ead, W)rite, or Q)uit - enter letter: ');
+    READ(CMD);
+    WRITELN;
+    CASE CMD OF
+
+      'R','r' : BEGIN GET_COMMAND := RD; EXIT END;
+
+      'W','w' : BEGIN GET_COMMAND := WR; EXIT END;
+
+      'Q','q' : BEGIN GET_COMMAND := QUIT; EXIT END;
+
+      ELSE
+        BEGIN
+          WRITELN;
+          WRITELN('Enter R,W or Q')
+        END (* ELSE *)
+
+     END (* CASE *)
+
+  UNTIL FALSE (* FOREVER LOOP *)
+END; (* GET_COMMAND *)
+
+
+
+PROCEDURE CHK_ERRORS(ERRVAL:INTEGER);
+BEGIN
+  IF ERRVAL = 0 THEN
+    BEGIN
+      WRITELN('NO ERRORS');
+      EXIT
+    END;
+  DATA.LEN := 0;
+
+  CASE ERRVAL OF
+
+    1 : WRITELN('READING UNWRITTEN DATA');
+
+    3 : WRITELN('CANNOT CLOSE CURRENT EXTENT');
+
+    4 : WRITELN('SEEK TO UNWRITTEN EXTENT');
+
+    5 : WRITELN('DIRECTORY FULL');
+
+    6 : WRITELN('SEEK PAST PHYSICAL END OF DISK')
+
+    ELSE
+      WRITELN('UNKNOWN ERROR, TYPE=',ERRVAL)
+
+  END
+END; (* CHK_ERRORS *)
+
+
+
+BEGIN (* MAIN PROGRAM *)
+
+  CHECK_VERSION; (* MAKE SURE WE HAVE CP/M 2.0 *)
+
+  WRITE('ENTER DATA BASE FILE NAME: ');
+  READSTR(DATA);	(* GO GET FILE NAME *)
+  NAMEPARSER(DATA,T);
+
+  MOVE(T.VAL[1],TITLE,12); (* THIS IS DONE BECAUSE
+                              OPEN WILL NOT ACCEPT A RECORD
+                              FIELD AS THE SECOND ARGUMENT  *)
+
+  OPEN(F,TITLE,RESULT);
+  IF RESULT = 255 THEN
+    BEGIN (* CREATE A NEW FILE *)
+      CREATE(F,TITLE,RESULT);
+      IF RESULT = 255 THEN
+        BEGIN
+          WRITE('UNABLE TO CREATE ');
+          WRITESTR(DATA);
+          WRITELN;
+          EXIT
+        END
+      ELSE
+        BEGIN
+          WRITESTR(DATA);
+          WRITELN(' CREATED')
+        END
+     END;
+
+  REPEAT
+    CASE GET_COMMAND OF
+      QUIT : BEGIN
+               CLOSE(F,RESULT);
+               IF RESULT <> 0 THEN
+                 BEGIN
+                   WRITELN('UNABLE TO CLOSE, RESULT=',RESULT);
+                   EXIT
+                 END
+               ELSE
+                 BEGIN
+                   WRITELN('FILE CLOSED SUCCESSFULLY');
+                   EXIT
+                 END
+            END; (* CASE OF QUIT *)
+
+      RD : BEGIN
+             WRITE('ENTER RECORD NUMBER? ');
+             READ(RECNUM);
+             DATA.LEN := 0; (* IN CASE OF ERROR *)
+             CHK_ERRORS(RANDOMREAD(F,DATA,RECNUM));
+             WRITESTR(DATA);
+             WRITELN
+           END;
+
+      WR : BEGIN
+             WRITE('ENTER RECORD NUMBER? ');
+             READ(RECNUM);
+             WRITE('ENTER DATA: ');
+             READSTR(DATA);
+             CHK_ERRORS(RANDOMWRITE(F,DATA,RECNUM))
+           END
+    END (* CASE *)
+  UNTIL FALSE (* FOREVER *)
+
+END.
+

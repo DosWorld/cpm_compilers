@@ -1,0 +1,33 @@
+
+	(* this procedure writes a byte to the screen in hex *)
+
+	procedure writehex(i:integer);
+	var j : char;
+
+	begin
+		j := chr(i); { forces high byte to 00 }
+		write(hex[ord(j) div 16],hex[ord(j) & 15]);
+	end;
+		    
+
+	(* this procedure writes 16 chars to the screen 
+	   if the chars are not > $20 then a . is printed *)
+
+	procedure writechars(p,numchars:integer);
+	var ch:char;
+	    i : integer;
+	    j : integer;
+	begin
+		for j := 1 to numchars do
+		begin
+			ch := chr(buf[p]);
+			if (ch >=chr($20)) and (ch < chr($80)) then
+			  write(ch)
+			else
+			  write('.');
+			p := p + 1
+		end
+	end;
+
+
+

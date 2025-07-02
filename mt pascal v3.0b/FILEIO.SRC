@@ -1,0 +1,182 @@
+
+(*----------------------------------------------*)
+(*						*)
+(*	FILEIO.SRC				*)
+(*						*)
+(*	INCLUDE FILE CONTAINING GNB AND WNB	*)
+(*	TWO ROUTINES TO READ TEXT FILES UNDER	*)
+(*	CP/M ONE CHARACTER AT A TIME		*)
+(*	ALSO CONTAINS GNR TO READ A LINE FROM	*)
+(*	A FILE USING GNB			*)
+(*						*)
+(*----------------------------------------------*)
+(*	****** NOTE ******			*)
+(*	USER MUST DEFINE THE FOLLOWING CONSTANTS*)
+(*	BUFSIZE AND RECSIZE			*)
+(*	ALSO USER MUST DEFINE ARRAY TYPES:	*)
+(*	BUFFER = ARRAY [0..BUFSIZE] OF CHAR	*)
+(*	REC = ARRAY [0..RECSIZE] OF CHAR	*)
+(*						*)
+(*	(BUFSIZE+1) DIV 128 MUST BE = 0		*)
+(*----------------------------------------------*)
+(*						*)
+(*	WRITTEN AUGUST 12, 1979 BY		*)
+(*	MICHAEL G. LEHMAN			*)
+(*	UPDATED FOR RELEASE 3.0 BY MGL		*)
+(*						*)
+(*----------------------------------------------*)
+
+
+
+(*----------------------------------------------*)
+(*						*)
+(*	ROUTINE:	GNB			*)
+(*	PURPOSE:	READ A BYTE FROM A FILE	*)
+(*	INPUTS:		F : TEXT FILE FCB	*)
+(*			BUF : BUFFER FOR I/O	*)
+(*			INDX : INDEX INTO BUF	*)
+(*						*)
+(*	OUTPUTS:	GNB : CHARACTER		*)
+(*			EOF : BOOLEAN WHICH IS	*)
+(*			      TRUE IF NO MORE	*)
+(*			      CHARS AVAILABLE	*)
+(*						*)
+(*----------------------------------------------*)
+
+
+FUNCTION GNB(VAR F:TEXT;
+	     VAR BUF:BUFFER;
+	     VAR INDX : INTEGER;
+	     VAR EOF:BOOLEAN) : CHAR;
+
+VAR
+  RESULT : INTEGER;
+  I : INTEGER;
+  CH: CHAR; (* FOR SPEED *)
+
+BEGIN (* GNB *)
+
+  IF INDX > BUFSIZE THEN
+    BEGIN
+      FOR I := 1 TO (BUFSIZE+1) DIV 128 DO
+        BEGIN
+          BLOCKREAD(F,BUF[(I-1)*128],RESULT);
+          IF (RESULT <> 0) AND (I = 1) THEN
+            BEGIN
+              CH := CHR($1A);
+              GNB := CH;
+              EOF := TRUE;
+              EXIT
+            END
+        END;
+      INDX := 0
+    END;
+
+  CH := BUF[INDX];
+  GNB := CH;
+  INDX := INDX + 1;
+  EOF := (CH = CHR($1A))
+
+END; (* GNB *)
+
+
+
+
+(*----------------------------------------------*)
+(*						*)
+(*	ROUTINE:	WNB			*)
+(*	PURPOSE:	WRITE A BYTE TO A FILE	*)
+(*						*)
+(*	INPUTS:		F : TEXT FILE		*)
+(*			BUF : I/O BUFFER	*)
+(*			INDX : INDEX INTO BUF	*)
+(*			CH : INPUT BYTE TO WRITE*)
+(*	OUTPUT:					*)
+(*			ERR : BOOLEAN SET TO	*)
+(*			      TRUE IF DISK FULL	*)
+(*						*)
+(*----------------------------------------------*)
+
+
+PROCEDURE WNB(VAR F : TEXT;
+	      VAR BUF : BUFFER;
+              VAR INDX : INTEGER;
+              VAR ERR : BOOLEAN;
+	      VAR CH : CHAR);
+		
+VAR
+  RESULT : INTEGER;
+  I : INTEGER;
+
+BEGIN (* WNB *)
+
+  BUF[INDX] := CH;
+  INDX := INDX + 1;
+  ERR := FALSE;
+  IF INDX <= BUFSIZE THEN
+    EXIT
+  ELSE
+    BEGIN
+      FOR I := 1 TO (BUFSIZE + 1) DIV 128 DO
+        BEGIN
+          BLOCKWRITE(F,BUF[(I-1)*128],RESULT);
+          IF RESULT <> 0 THEN
+             BEGIN
+               ERR := TRUE;
+               EXIT
+             END
+        END;
+      INDX := 0
+    END
+
+END; (* WNB *)
+
+
+
+
+(*----------------------------------------------*)
+(*						*)
+(*	ROUTINE:	GNR			*)
+(*	PURPOSE:	READ A LINE FROM A FILE	*)
+(*						*)
+(*	INPUTS:		F : TEXT FILE		*)
+(*			BUF : I/O BUFFER	*)
+(*			INDX : INDEX INTO BUF	*)
+(*						*)
+(*	OUTPUTS:	RECRD: LINE BUFFER FULL *)
+(*			EOF : BOOLEAN TRUE IF	*)
+(*			      NO MORE TO READ	*)
+(*						*)
+(*----------------------------------------------*)
+
+
+PROCEDURE GNR(VAR F : TEXT;
+	      VAR BUF : BUFFER;
+              VAR INDX : INTEGER;
+              VAR RECRD : REC;
+	      VAR EOF : BOOLEAN);
+VAR
+  I : INTEGER;
+  CH : CHAR; (* FOR SPEED *)
+
+BEGIN (* GNR *)
+
+  RECRD[0] := ' ';
+  MOVE(RECRD[0],RECRD[1],RECSIZE);	(* BLANK BUFFER *)
+ 
+  I := 0;
+
+  REPEAT
+    CH := GNB(F,BUF,INDX,EOF);
+    RECRD[I] := CH;
+    I := I + 1
+  UNTIL (CH = CHR($0A)) OR (EOF);
+
+
+END; (* GNR *)
+
+
+(*------------------------------*)
+(*	END OF FILEIO.SRC	*)
+(*------------------------------*)
+ 

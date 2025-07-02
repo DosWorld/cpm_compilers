@@ -1,0 +1,57 @@
+(*	pascal disk dump!	*)
+
+
+program dumpit;
+
+var
+  f : text;	{ input file }
+  title : array [0..11] of char; { file name }
+  buf : array [0..127] of char;
+  blocknum,p,p2 : integer;
+  first : boolean;
+  hex:array [0..15] of char;
+
+(*$I dumpsubs*)
+		
+begin
+  hex := '0123456789ABCDEF';
+  p := $5C;		{get file name from default fcb}
+  move(p^,title,12);
+  blocknum := 0;
+  open(f,title,p);		{ open the file }
+  if p = 255 then
+    begin
+      writeln('unable to open file');
+      exit
+    end;
+  repeat
+
+    blockread(f,buf,p);
+    if p <> 0 then
+      begin
+        writeln('end of file');
+        exit
+      end;
+    writeln;
+    writeln('Block #',blocknum,' of File: ',title);
+    blocknum := blocknum + 1;
+    first := true;
+    repeat
+      if p & 15 = 0 then
+        begin
+          if first then
+            first := false
+          else
+            writechars(p-16,16);
+
+          writeln;
+          writehex(p div 256); writehex(p); write(': ')
+        end;
+      writehex(ord(buf[p])); write(' ');
+      p := p + 1
+    until p =128;
+    writechars(p-16,16);
+    writeln 
+  until false		{ forever until end of file }
+end.
+
