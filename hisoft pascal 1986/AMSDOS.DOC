@@ -1,0 +1,24 @@
+The files FROMAMS and TOAMS convert files from and to the format used
+by the HiSoft Pascal compiler that runs under AMSDOS.
+
+Their syntax is
+
+FROMAMS destfile sourcefile
+TOAMS destfile sourcefile
+
+
+e.g
+
+FROMAMS TEST.PAS TEST.AMS
+TOAMS TEST.AMS TEST.PAS
+
+is
+
+FROMAMS destfile sourcefile
+TOAMS destfile sourcefile
+
+
+e.g
+
+FROMAMS TEST.PAS TEST.AMS
+TOAMS TEST.AMS 

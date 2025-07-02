@@ -1,0 +1,94 @@
+WD
+----
+
+WD is a program which allows you selectively to delete files on a disc.
+WD is invoked by typing its name followed by a standard CP/M 'ambiguous
+file specification', such as B:*.COM. If no ambiguous file specification is
+given, WD treats it as if '*.*' were entered. If a drive specification
+only is entered, such as B:, WD treats it as '*.*' on the specified drive.
+The name of each file which is found to match this file specification is then
+displayed, along with a prompt:
+
+	Delete (Y/N/A/Q)?
+
+If you hit the 'Y' or 'y' key, the displayed file is deleted. If you press the
+'A' or 'a' key, THIS AND ALL SUBSEQUENT files which meet the specification
+are deleted without further prompting. If you press the 'Q' or 'q' key, the
+program ends and returns to CP/M without deleting the current file or subsequent
+files. If you press any other key, the file is not deleted and the name of the
+next matching file is displayed.
+
+If any file is set to 'Read Only' with STAT or other utilities, then a message
+
+	Cannot delete!
+
+is displayed and the program continues.
+
+
+SD
+----
+
+SD produces and displays a more detailed listing of the files on a disc than
+that produced by the 'DIR' command. Like DIR, SD may be invoked by itself or
+it may be followed by a CP/M ambiguous file specification such as A:KNIFE.*
+
+For example, to get a complete listing, type:
+
+SD (or SD A: or SD b: etc)
+
+and to get a listing of all files with the 'COM' extension, type
+
+SD *.COM (or SD B:*.COM etc)
+
+The listing produced on the screen shows the name of the file in full, with the
+total number of records (in decimal) along with the number of K (1024-byte
+units) the file occupies (in decimal).
+
+If the file is marked as read-only (for example, with the SET utility), then SD
+displays an 'R' by its name. If the file is marked as a system file, there is an
+'S'. Both attributes may be held by the same file.
+
+This program, which is just over 800 bytes long, performs much the same
+functions as most of STAT, SHOW and DIR. STAT is 8K and DIR and SHOW are
+substantially larger. If disc space is at a premium, which it is generally
+is with 3" discs, we recommend you use SD in preference to the normal CP/M
+utilities.
+
+WP
+--
+
+WP is a short-and-sweet file copying utility which makes the task of
+transferring given files between discs relatively easy. It is used like
+this:
+
+WP <afn> {<destination drive name>} {-q}
+
+where 'afn' is a standard CP/M ambiguous file specification, from a lone
+drive name (e.g. A:) up to a full file name. Note that a lone drive name
+is taken as 'drive name:*.*', so that 'A:' matches all files on drive A
+in the current user area. The destination drive name, if present, is a
+normal CP/M drive name such as B:. If left out, the default drive is used.
+The '-q' is the 'quiet' option switch and its action will be described later.
+
+WP finds each file matching the <afn> given and presents the name of each
+one to the user along with a prompt:
+
+	Copy (Y/N/A/Q)?
+
+'Y' corresponds to 'yes', 'N' to 'no', 'A' to 'this and all subsequent
+matching files' and 'Q' to 'quit'. Each file to be copied is copied to the
+destination drive WITH THE SAME NAME. Any file of the same name on the
+destination drive is deleted prior to the operation whether the copy succeeds
+or not, unless it specifically has been marked 'R/O'.
+
+If the -q option is present (the 'q' may be in upper or lower case) in the
+command line then the 'Copy (Y/N/A/Q)?' prompt will not appear. WP will
+run as if 'A' had been pressed in response to this prompt before any file
+names were displayed. In other words all files matching the afn are copied
+without prompting. Note that the -q option must be after the source afn AND
+the destination drive name (if present) in the command line.
+
+If the source and destination drives are the same an error message is printed
+and no names are produced. If the copy fails for lack of disc or directory
+space a message is printed to the console and the new copy of the file deleted.
+the copy fails for l

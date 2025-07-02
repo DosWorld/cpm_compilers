@@ -1,0 +1,66 @@
+Cursor Moving commands
+----------------------
+^@           Character Left          ^R           Character Right
+^@           Character Left (Alt)
+^T           Word Left               ^U           Word Right
+^G ^@        Tab Left                ^G ^R        Tab Right
+^S ^@        Start of line           ^S ^R        End of line
+^C           Line Up                 ^B           Line Down
+^S ^C        Top of Screen           ^S ^B        Bottom of Screen
+^J           Page Up                 ^K           Page Down
+^S ^J        Start of File           ^S ^K        End of File
+
+Text deleting commands
+----------------------
+3. Save ED80  Delete Line
+^P           Delete last character   ^Q           Delete this character
+^S ^F        Delete word left        ^F           Delete word right
+^S ^T        Delete to start line    ^S ^U        Delete to end line
+
+
+
+
+
+
+Press [RETURN] to end; any other key for more Help
+Block commands
+--------------
+^S : :       Mark Start of block     ^S : =       Mark End of block
+^S : E       Move Block              ^S : ;       Copy Block
+^S : <       Delete Block            ^S : H       Paste Deleted Block
+^S : J       Read Block from disc    ^S : O       Write Block to disc
+
+Quick cursor movement
+---------------------
+^G ?         Go to Line
+^G :         Go to start of block    ^G =         Go to end of block
+^G (         Remember position       ^S (         Return to position
+
+Find and Substitute
+-------------------
+^S >         Find First              ^D           Find Next
+^S J         Substitute & Find       ^S 9         Substitute All
+
+Leaving ED80
+------------
+^S I         Quit and Exit           ^G I         Exit without Backup
+^S P         Exit with a Backup
+
+
+Press [RETURN] to end; any other key for more Help
+Toggles
+-------
+^I           Toggle change/insert    ^S A         Toggle auto indent
+^S F         Toggle space display
+
+Miscellaneous
+-------------
+^A           Deliver TAB character   ^G J         Restore line
+^G <         Disc Directory          ^G B         Erase file from disc
+^H           Control meta-key        ^W           Help key
+
+
+   Disc Directory          ^G B         Erase file from disc
+^H           Control meta-key        ^W           Help key
+
+

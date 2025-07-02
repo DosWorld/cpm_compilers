@@ -1,0 +1,78 @@
+
+Number is too large
+Semi-colon or END expected before here
+Undeclared identifier
+Identifier expected
+'=' not ':=' in constant declarations
+'=' expected
+This identifier can't begin a statement
+':=' expected
+')' expected
+Wrong type combination
+'.' expected
+Factor expected
+Constant expected
+Identifier is not a constant
+'THEN' expected
+'DO' expected
+'TO' or 'DOWNTO' expected
+'(' expected
+Can't write this type of expression
+'OF' expected
+comma expected
+colon expected
+'PROGRAM' expected
+Variable expected as parameter
+'BEGIN' expected
+Variable expected in READ
+Cannot compare expressions of this type
+Type INTEGER or REAL expected
+Can't read this type of variable
+Identifier is not a type
+Exponent expected in real number
+Scalar expression expected
+Null strings not allowed: use CHR(0)
+'[' expected
+']' expected
+Array index type must be scalar
+'..' expected
+']' or ',' expected in ARRAY decl
+Lowerbound > upperbound
+Set too large ( >256 elements )
+Function result must be type identifier
+',' or ']' expected in set
+'..' or ',' or ']' expected in set
+Parameter type must be type identifier
+Null set not allowed here
+Scalar (including real) expected
+Scalar (not real) expected
+Sets incompatible
+'<' and '>' can't be used with sets
+FORWARD, LABEL, CONST, TYPE, VAR, BEGIN
+Hex digit expected
+Cannot POKE sets
+Array too large ( >64K! )
+'END' or ',' expected in RECORD defn
+Field identifier expected
+Variable expected after 'WITH'
+Variable in WITH must be RECORD type
+No associated WITH statement
+Unsigned integer expected after LABEL
+Unsigned integer expected after GOTO
+Label at wrong level
+Undeclared label
+Cannot assign or POKE files
+Can only use equality tests on pointers
+Parameter should be of FILE type
+File buffer too large ( >32K )
+Too many ':'s. Only e:m:h valid
+Strings can't have EOLNs
+Parameter must be a POINTER variable
+ADDR takes a variable parameter
+Only FILEs OF CHAR or subrange allowed
+Files must be globals or VAR parameters
+RESET, REWRITE invalid on INPUT, OUTPUT
+SIZE takes variable or type identifier
+Runtime Error
+This proc/func only on textfiles
+ET, REWRITE invalid on INPUT, O
