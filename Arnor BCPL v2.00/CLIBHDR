@@ -1,0 +1,392 @@
+// CLIBHDR   standard CP/M library header, last modified 21/03/1987
+
+
+MANIFEST $( bytesperword = 2 ; bitsperword = 16
+            softeofch = 26   ; endstreamch = -1
+            vdustream = 0    ; printstream = 1
+            maxint = 32767   ; minint = -32768
+            newlinech = 269
+         $)
+
+STATIC   $( readstream = 0 ; writestream = 0
+            returned = 0   ; lastchar = 0
+         $)
+
+
+/**** OUTPUT ROUTINES ****/
+
+LET wrch(char) BE
+$(
+  SWITCHON writestream INTO
+  $(
+     CASE vdustream   :  wrvdu(char) ; ENDCASE
+     CASE printstream :  prch(char) ; ENDCASE
+     DEFAULT          :  writech(char,writestream)
+  $)
+$)
+
+AND writef(string,a,b,c,d,e,f,g,h,i,j,k) BE
+$(
+  LET pptr = @a
+  FOR cptr = 1 TO string%0 DO
+  $(
+    LET k = string%cptr
+    TEST k = '%' THEN
+    $(
+      LET arg = !pptr
+      cptr := cptr + 1
+      $(
+        LET ch, size = string%cptr, decval(string%(cptr+1))
+        pptr := pptr + 1
+        cptr := cptr + VALOF
+        SWITCHON ch INTO
+        $(
+          CASE 'S': writes(arg)   ; RESULTIS 0
+          CASE 'C': wrch(arg)     ; RESULTIS 0
+          CASE 'N': writed(arg,0) ; RESULTIS 0
+          CASE 'O': writeoct(arg,size) ; RESULTIS 1
+          CASE 'X': writehex(arg,size) ; RESULTIS 1
+          CASE 'I': writed(arg,size)   ; RESULTIS 1
+          CASE '$': RESULTIS 0
+          DEFAULT : wrch(ch) ; pptr := pptr - 1   ; RESULTIS 0
+        $)
+      $)
+    $)
+    ELSE wrch(k)
+  $)
+$)
+
+AND writes(s) BE FOR c = 1 TO s%0 DO wrch(s%c)
+
+AND writed(num,d) BE
+$(
+  LET temp = VEC 20
+  AND ptr, n = 0, num
+  IF num<0 THEN d, n := d-1, -n
+  temp!ptr, n, ptr := n REM 10, n/10, ptr+1 REPEATUNTIL n = 0
+  FOR j = ptr+1 TO d DO wrch(' ')
+  IF num<0 THEN wrch('-')
+  FOR j = ptr-1 TO 0 BY -1 DO wrch(temp!j+'0')
+$)
+
+AND writen(n) BE writed(n,0)
+
+AND writehex(num,d) BE
+$(
+  IF D>1 THEN writehex(num>>4, d-1)
+  wrch((num LOGAND 15)!TABLE '0','1','2','3','4','5','6','7','8','9',
+                             'A','B','C','D','E','F')
+$)
+
+AND writeoct(num,d) BE
+$(
+  IF d>1 THEN writeoct(num>>3,d-1)
+  wrch((num LOGAND 7)+'0')
+$)
+
+AND newline() BE  wrch(newlinech)
+
+
+/**** INPUT ROUTINES ****/
+
+AND rdch() = VALOF
+$(
+  UNLESS returned = 0 THEN
+  $(
+    LET c = returned
+    returned := 0
+    lastchar := c
+    RESULTIS c
+  $)
+  RESULTIS readstream = 0 -> rdvdu(), readch(readstream)
+$)
+
+AND unrdch() BE returned := lastchar
+
+AND reads(array) = VALOF
+$(
+  MANIFEST $( escape = #xFC  ;  stop=3 ; maxlen=255 $)
+  LET ptr, c = 0, ?
+  $(
+    FOR i=1 to ptr DO $( wrch(8) ; wrch(' ') ; wrch(8) $)
+    ptr:=0
+    c := rdch()
+    UNTIL c=13 | c=escape | c=stop DO
+    $(
+      TEST c=127 THEN
+      $(
+        TEST ptr=0 THEN wrch(7)
+        ELSE
+        $(
+          wrch(8) ; wrch(' ') ; wrch(8)
+          ptr := ptr-1
+        $)
+      $)
+      ELSE
+      $(
+        TEST ptr=maxlen THEN wrch(7)
+        ELSE
+        $( wrch(c)
+           ptr := ptr + 1
+           array%ptr := c
+        $)
+      $)
+      c := rdch()
+    $)
+  $)
+  REPEATWHILE (c=escape | c= stop) & (ptr \= 0)
+  array%0 := (c=escape | c=stop) -> 0, ptr
+  RESULTIS NOT (c=escape | c=stop)
+$)
+
+AND readn() = VALOF
+$(
+  LET input = VEC 128
+  reads(input)
+  RESULTIS strtonum(input,10)
+$)
+
+AND strtonum(string,base) = VALOF
+$(
+  LET ptr, total = 1, 0
+  WHILE ptr <= string%0 LOGAND (0<=decval(string%ptr)<base) DO
+  $(
+    total := total * base + decval(string%ptr)
+    ptr := ptr + 1
+  $)
+  RESULTIS total
+$)
+
+
+/**** FILE I/O ROUTINES ****/
+
+AND findinput(name, buffer) = VALOF
+$(
+  LET c, de = 15, buffer*2
+  setfcb(name, buffer)    // set the fcb
+  bdosa(@c, @de)          // open file
+  buffer!17 := 164        // set sector pointer
+  RESULTIS c \= 255
+$)
+
+AND endread() = VALOF
+$(
+  LET buf=readstream
+  readstream := vdustream
+  RESULTIS buf>0 -> closein(buf), TRUE
+$)
+
+AND rewind() BE IF readstream > 0 THEN rewindin(readstream)
+
+AND findoutput(name,buffer) = VALOF
+$(
+  LET c, de = 22, buffer*2
+  setfcb(name, buffer)
+  bdosb(19, buffer*2)
+  bdosa(@c, @de)
+  buffer!17 := 36
+  RESULTIS c \= 255
+$)
+
+AND endwrite() = VALOF
+$(
+  LET buf = writestream
+  writestream := vdustream
+  RESULTIS buf>0 -> closeout(buf), TRUE
+$)
+
+
+/**** PRIMITIVE I/O ROUTINES ****/
+
+AND wrvdu(c) = VALOF
+$(
+  IF c=newlinech THEN $( wrvdu(13) ; c:=10 $)
+  bdosb(2,c)
+  RESULTIS TRUE
+$)
+
+AND prch(c) = VALOF
+$(
+  IF c=newlinech THEN $( prch(13) ; c:=10 $)
+  bdosb(5,c)
+  RESULTIS TRUE
+$)
+
+AND prbusy() = VALOF
+$(
+  LET a=?
+  bios(15,@a)
+  RESULTIS a = 0        // TRUE if printer busy
+$)
+
+AND rdtest() = VALOF
+$(  
+  LET c,de = 11,?
+  bdosa(@c,@de)
+  RESULTIS c=1
+$)
+
+AND flush() BE WHILE rdtest() rdvdu()
+
+AND readch(buffer) = VALOF
+$(
+  LET character, fail = 0, FALSE
+  IF buffer!17 = 164 THEN
+  $(
+    fail := NOT readsector(buffer)    // read a sector
+    buffer!17 := 36
+  $)
+  character := buffer%(buffer!17)
+  buffer!17 := buffer!17 + 1
+  RESULTIS character LOGOR fail
+$)
+
+AND closein(buffer) = TRUE
+
+AND rewindin(buffer) BE $( buffer%32 := 0  ;  buffer!17 := 164 $)
+
+AND writech(char, buffer) = VALOF
+$(
+  LET success = TRUE
+  IF char=newlinech THEN
+  $(
+    UNLESS writech(13,buffer) RESULTIS FALSE
+    char:=10
+  $)
+  IF buffer!17 = 164 THEN
+  $(
+    success := writesector(buffer)
+    buffer!17 := 36
+  $)
+  buffer%(buffer!17) := char
+  buffer!17 := buffer!17 + 1
+  RESULTIS success
+$)
+
+AND closeout(buffer) = VALOF
+$(
+  LET c, de = 16,buffer*2
+  UNLESS buffer!17 = 164 THEN writech(26,buffer)
+  UNLESS buffer!17 = 36 THEN writesector(buffer)
+  bdosa(@c,@de)
+  RESULTIS c \= 255
+$)
+
+AND readsector(buffer) = VALOF
+$(
+  LET result, buff = 20, buffer*2
+  bdosb(26, buffer*2+36)
+  bdosa(@result, @buff)
+  RESULTIS result = 0     // TRUE is successful and not hard EOF
+$)
+
+AND writesector(buffer) = VALOF
+$(
+  LET result, buff = 21, buffer*2
+  bdosb(26, buffer*2+36)
+  bdosa(@result, @buff)
+  RESULTIS result = 0      // TRUE if written successfully
+$)
+
+AND setfcb(name, buffer) BE
+$(
+  LET nptr, fptr, c, drvflag = 1, 1, 0, TRUE
+  FOR i = 1 TO 11 buffer%i := ' '
+  buffer%0 := 0
+  WHILE nptr <= name%0 DO
+  $(
+    c := uppercase(name%nptr)
+    nptr := nptr + 1
+    IF fptr = 2 LOGAND drvflag LOGAND c = ':' THEN
+    $(
+      buffer%0 := buffer%1 - 'A' + 1
+      fptr, drvflag := 1, FALSE
+      LOOP
+    $)
+    IF c = '.' THEN $( fptr := 9 ; BREAK $)
+    IF fptr = 9 LOGOR c = ' ' THEN BREAK
+    buffer%fptr := c
+    fptr := fptr + 1
+  $)
+  IF c = '.' THEN
+    WHILE nptr <= name%0 DO
+    $(
+      c := uppercase(name%nptr)
+      nptr := nptr + 1
+      IF c = ' ' LOGOR fptr = 12 THEN BREAK
+      buffer%fptr := c
+      fptr := fptr + 1
+    $)
+  buffer%12, buffer%32 := 0, 0
+$)
+
+
+/**** MISCELLANEOUS ROUTINES ****/
+
+AND bdosa(c,de) BE
+$(
+  INLINE 221,102,127      // ld h,(ix+127)
+  INLINE 221,110,126      // ld l,(ix+126)
+  INLINE 41               // add hl,hl
+  INLINE 94               // ld e,(hl)
+  INLINE 35               // inc hl
+  INLINE 86               // ld d,(hl)
+  INLINE 221,102,125      // ld h,(ix+125)
+  INLINE 221,110,124      // ld l,(ix+124)
+  INLINE 41               // add hl,hl
+  INLINE 78               // ld c,(hl)
+  INLINE 221,229          // push ix
+  INLINE 205,5,0          // call bdos
+  INLINE 221,225          // pop ix
+  INLINE 235              // ex de,hl
+  INLINE 221,102,127      // ld h,(ix+127)
+  INLINE 221,110,126      // ld l,(ix+126)
+  INLINE 41               // add hl,hl
+  INLINE 115              // ld (hl),e
+  INLINE 35               // inc hl
+  INLINE 114              // ld (hl),d
+  INLINE 221,102,125      // ld h,(ix+125)
+  INLINE 221,110,124      // ld l,(ix+124)
+  INLINE 41               // add hl,hl
+  INLINE 119              // ld (hl),a
+  INLINE 35               // inc hl
+  INLINE 54,0             // ld (hl),0
+$)
+
+AND bdosb(c,de) BE
+$(
+  INLINE 221,86,127       // ld d,(ix+127)
+  INLINE 221,94,126       // ld e,(ix+126)
+  INLINE 221,78,124       // ld c,(ix+124)
+  INLINE 221,229          // push ix
+  INLINE 205,5,0          // call bdos
+  INLINE 221,225          // pop ix
+$)
+
+AND bios(n,a) BE
+$(
+  LET save=VEC 1
+  save%0 := 0%#x80 ; save%1 := 0%#x81 ; save%2 := 0%#x82
+  0%#x80 := #xC3
+  0%#x81 := 0%(0%1 + 256*0%2 + (n-1)*3 +1)
+  0%#x82 := 0%(0%1 + 256*0%2 + (n-1)*3 +2)
+  INLINE 221,229          // push ix
+  INLINE #xCD,#x80,#x00   // call bios routine
+  INLINE 221,225          // pop ix
+  INLINE 221,102,127      // ld h,(ix+127)
+  INLINE 221,110,126      // ld l,(ix+126)
+  INLINE 41               // add hl,hl
+  INLINE 119              // ld (hl),a
+  INLINE 35               // inc hl
+  INLINE 54,0             // ld (hl),0
+  0%#x80 := save%0 ; 0%#x81 := save%1 ; 0%#x82 := save%2
+$)
+
+AND selectinput(stream)  BE readstream  := stream
+AND selectoutput(stream) BE writestream := stream
+AND input()  = readstream
+AND output() = writestream
+AND uppercase(char) = 'a'<=char<='z' -> char - 32, char
+AND capitalch(c) = uppercase(c)
+AND decval(digit) = '0'<=digit<='9'  -> digit-'0', digit-'A'+10
+

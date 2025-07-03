@@ -1,0 +1,182 @@
+// CLIBHDR1   additional CP/M library header, last modified 19/11/1986
+
+
+STATIC $( randomseed = 0 $)
+
+LET random() = VALOF
+$(
+  randomseed := randomseed * #xA3ED + #x1D31
+  RESULTIS randomseed
+$)
+
+AND stop(code) BE
+$(
+  bdosb(108,code)
+  finish
+$)
+
+AND tail(string) BE
+$(
+  string%0 := 0%#x80
+  FOR a = 1 TO string%0 DO string%a := 0%(#x80+a)
+$)
+
+AND delete(name,buffer) = VALOF
+$(
+  LET c, de = 19, buffer*2
+  setfcb(name,buffer)
+  bdosa(@c,@de)
+  RESULTIS c\=255
+$)
+
+AND rename(name1,name2,buffer) = VALOF
+$(
+  LET c, de = 23, buffer*2
+  setfcb(name1,buffer)
+  setfcb(name2,buffer+16)
+  bytemove(buffer*2+32,buffer*2+16,16)
+  bdosa(@c,@de)
+  RESULTIS c\=255
+$)
+
+AND writet(s,n) BE
+$(  
+  writes(s)
+  FOR i = 1 to n-s%0 DO wrch(' ')
+$)
+
+AND writeu(n,d) BE
+$(
+  LET m = (n>>1)/5
+  UNLESS m=0 DO
+  $(
+    writed(m,d-1)
+    d := 1
+  $)
+  writed(n-m*10,d)
+$)
+
+AND newpage() BE  wrch(12)
+
+AND compch(ch1,ch2) = capitalch(ch1) - capitalch(ch2)
+
+AND compstring(s1,s2) = VALOF
+$(
+  LET len1,len2 = s1%0, s2%0
+  LET shorter = len1<len2 -> s1, s2
+  FOR i = 1 to shorter%0 DO
+  $(
+    LET res = compch(s1%i, s2%i)
+    UNLESS res=0 RESULTIS res
+  $)
+  RESULTIS len1=len2 -> 0, shorter=s1 -> -1,1
+$)
+
+AND bytemove(source,dest,number) BE
+$(
+  inline 221,102,123      // ld h,(ix+123)
+  inline 221,110,122      // ld l,(ix+122)
+  inline 221,86,125       // ld d,(ix+125)
+  inline 221,94,124       // ld e,(ix+124)
+  inline 221,70,127       // ld b,(ix+127)
+  inline 221,78,126       // ld c,(ix+126)
+  inline 167              // and a
+  inline 237,82           // sbc hl,de
+  inline 25               // add hl,de
+  inline 56,4             // jr c,+4
+  inline 237,176          // ldir
+  inline 24,8             // jr +8
+  inline 11               // dec bc
+  inline 9                // add hl,bc
+  inline 235              // ex de,hl
+  inline 9                // add hl,bc
+  inline 235              // ex de,hl
+  inline 3                // inc bc
+  inline 237,184          // lddr
+$)
+
+AND call(addr,af,bc,de,hl,ix) BE
+$(
+  LET save3 = VEC 1
+  bytemove(#x90, save3*2, 3)
+  0%#x90 := #xC3
+  0%#x91 := addr & #xFF
+  0%#x92 := ( addr & #xFF00 ) >> 8
+  inline #xDD,#xE5            // push ix
+  inline #xDD,#x66,#x77       // ld h,(ix+119)
+  inline #xDD,#x6E,#x76       // ld l,(ix+118)
+  inline #x29,#x5E,#x56,#x23  // add hl,hl:ld e,(hl):inc hl:ld d,(hl)
+  inline #xD5                 // push de
+  inline #xDD,#x66,#x79       // ld h,(ix+121)
+  inline #xDD,#x6E,#x78       // ld l,(ix+120)
+  inline #x29,#x4E,#x23,#x46  // add hl,hl:ld c,(hl):inc hl:ld b,(hl)
+  inline #xDD,#x66,#x7F       // ld h,(ix+127)
+  inline #xDD,#x6E,#x7E       // ld l,(ix+126)
+  inline #x29,#x5E,#x23,#x56  // add hl,hl:ld e,(hl):inc hl:ld d,(hl)
+  inline #xD5                 // push de
+  inline #xDD,#x66,#x7D       // ld h,(ix+125)
+  inline #xDD,#x6E,#x7C       // ld l,(ix+124)
+  inline #x29,#x5E,#x23,#x56  // add hl,hl:ld e,(hl):inc hl:ld d,(hl)
+  inline #xD5                 // push de
+  inline #xDD,#x66,#x7B       // ld h,(ix+123)
+  inline #xDD,#x6E,#x7A       // ld l,(ix+122)
+  inline #x29,#x5E,#x23,#x56  // add hl,hl:ld e,(hl):inc hl:ld d,(hl)
+  inline #xE1,#xDD,#xE1,#xF1  // pop hl:pop ix:pop af
+  inline #xCD,#x90,#x00       // call &90
+  inline #xDD,#x22,#x90,#x00  // ld (&90),ix
+  inline #xDD,#xE1            // pop ix
+  inline #xF5,#xE5            // push af:push hl
+  inline #xDD,#x66,#x7B       // ld h,(ix+123)
+  inline #xDD,#x6E,#x7A       // ld l,(ix+122)
+  inline #x29,#x73,#x23,#x72  // add hl,hl:ld (hl),e:inc hl:ld (hl),d
+  inline #xDD,#x66,#x7D       // ld h,(ix+125)
+  inline #xDD,#x6E,#x7C       // ld l,(ix+124)
+  inline #x29,#xD1            // add hl,hl:pop de
+  inline #x73,#x23,#x72       // ld (hl),e:inc hl:ld (hl),d
+  inline #xDD,#x66,#x7F       // ld h,(ix+127)
+  inline #xDD,#x6E,#x7E       // ld l,(ix+126)
+  inline #x29                 // add hl,hl
+  inline #xED,#x5B,#x90,#x00  // ld de,(&90)
+  inline #x73,#x23,#x72       // ld (hl),e:inc hl:ld (hl),d
+  inline #xDD,#x66,#x79       // ld h,(ix+121)
+  inline #xDD,#x6E,#x78       // ld l,(ix+120)
+  inline #x29,#x71,#x23,#x70  // add hl,hl:ld (hl),c:inc hl:ld (hl),b
+  inline #xDD,#x66,#x77       // ld h,(ix+119)
+  inline #xDD,#x6E,#x76       // ld l,(ix+118)
+  inline #x29,#xD1            // add hl,hl:pop de
+  inline #x73,#x23,#x72       // ld (hl),e:inc hl:ld (hl),d
+  bytemove(save3*2, #x90, 3)
+$)
+
+AND firmware(addr,af,bc,de,hl,ix) BE
+$(
+  LET save6 = VEC 3
+  bytemove(#x80, save6*2, 6)
+  0%#x80 := #xCD
+  0%#x81 := 0%(0%1 + 256*0%2 + 87 +1)
+  0%#x82 := 0%(0%1 + 256*0%2 + 87 +2)
+  0%#x83 := addr & #xFF
+  0%#x84 := ( addr & #xFF00 ) >> 8
+  0%#x85 := #xC9
+  call (#x80,af,bc,de,hl,ix)
+  bytemove(save6*2, #x80, 6)
+$)
+
+AND version() = VALOF
+$(
+  LET c,de=12,?
+  LET af,bc,hl,ix = ?,?,?,?
+  bdosa(@c,@de)
+  IF (de & #xFF) < #x30 THEN RESULTIS 2
+  firmware(#xE3,@af,@bc,@de,@hl,@ix)
+  RESULTIS 3 + ( af >> 8 )
+$)
+
+AND getbyte(s,i) = s%i
+AND putbyte(s,i,c) BE s%i := c
+AND unpackstring(s,v) BE FOR i = 0 TO s%0 DO v!i := s%i
+AND packstring(v,s) BE
+$(
+  LET n = !v LOGAND #xFF
+  FOR i = 1 TO n DO s%i := s!i
+$)

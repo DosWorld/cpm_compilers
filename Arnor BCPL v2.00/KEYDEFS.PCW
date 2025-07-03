@@ -1,0 +1,12 @@
+14 N S "^'#F0'" cursor up           Key definitions for BCPL editor on PCW
+14 A "^'#F8'" alt-cursor up
+6 N S "^'#F3'" cursor right
+6 A "^'#FB'"  alt-cursor right
+79 N S "^'#F1'" cursor down
+79 A "^'#F9'" alt-cursor down
+15 N S "^'#F2'" cursor left
+15 A "^'#FA'" alt-cursor left
+66 N "^'#FC'" stop
+26 A "^'27'" alt-[
+17 A "^'29'" alt-]
+

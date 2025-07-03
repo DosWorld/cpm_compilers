@@ -1,0 +1,140 @@
+/* BCPL debug procedure 02/11/1986 */
+
+/*      debug(opt,n,d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12)
+
+        The first parameter specifies the required option.
+
+                 0 : pause execution, wait for a key to be pressed
+                 1 : display values of variables in decimal
+                -1 : display names and values of variables in decimal
+                 2 : display value of strings
+                -2 : display name and value of strings
+                 3 : display contents of vectors
+                -3 : display name and contents of vectors
+                 4 : display values of variables in hexadecimal
+                -4 : display names and values of variables in hexadecimal
+
+
+        The second parameter (n) is the number of variables or strings
+        or vectors to be displayed.
+
+        If opt is positive there follows a list of identifiers.
+        If opt is negative there follows a list of pairs - a string
+        giving the identifier name and the identifier.
+
+        For options 3 and -3 each identifier is followed by the length of
+        the vector, that is the number of bytes to display.
+
+        Examples:
+                        debug(1,3,var1,var2,var3)
+                        debug(-1,3,"var1",var1,"var2",var2,"var3",var3)
+                        debug(2,1,str)
+                        debug(-2,2,"str1",str1,"str2",str2)
+                        debug(3,1,vector,32)
+                        debug(-3,1,"vector",vector,32)
+                        debug(4,2,hex1,hex2)
+                        debug(-4,3,"hex1",hex1,"hex2",hex2,"hex3",hex3)
+*/
+
+
+AND debug(opt,n,d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12) be
+
+$(      MANIFEST $( escape=#xFC ; stop=3 $)
+        LET parm, ch, len = @d1, ?, ?
+        LET wrnum, wrwid = writed, 0
+        SWITCHON (opt>0 -> opt, -opt) INTO
+        $(
+                CASE 1 : writes("*nBCPL Debug. Variable values: ")
+                         ENDCASE
+                CASE 2 : writes("*nBCPL Debug. String contents: ")
+                         ENDCASE
+                CASE 3 : writes("*nBCPL Debug. Vector contents: ")
+                         ENDCASE
+                CASE 4 : writes("*nBCPL Debug. Variable values, hex: ")
+                         wrnum := writehex
+                         wrwid := 4
+                         ENDCASE
+                DEFAULT:
+                        writes("*nPress a key to resume execution: ")
+                        ch:=rdch() ; IF ch=escape | ch=stop  then FINISH
+                        newline()
+                        RETURN
+        $)
+
+        newline()
+        IF opt > 0 & opt NE 3 DO writes("  ")
+
+        FOR i = 1 TO n DO
+        $(
+            SWITCHON opt INTO
+            $(
+                CASE 1:
+                CASE 4:
+                        wrnum(!parm,wrwid) ; wrch(' ')
+                        parm := parm + 1
+                        ENDCASE
+
+                CASE -1:
+                CASE -4:
+                        writes("  ")
+                        writes(!parm)
+                        writes(" = ")
+                        wrnum(parm!1,wrwid)
+                        newline()
+                        parm := parm + 2
+                        ENDCASE
+
+                CASE 2:
+                        wrch('"') ; writes(!parm) ; wrch('"')
+                        wrch(' ')
+                        parm := parm + 1
+                        ENDCASE
+
+                CASE -2:
+                        writes("  ")
+                        writes(!parm)
+                        writes(" = ") ; wrch('"')
+                        writes(parm!1) ; wrch('"')
+                        newline()
+                        parm := parm + 2
+                        ENDCASE
+
+                CASE 3:
+                        debugvector(!parm,parm!1)
+                        parm := parm + 2
+                        ENDCASE
+
+                CASE -3:
+                        writes(!parm) ; newline()
+                        debugvector(parm!1,parm!2)
+                        parm := parm + 3
+                        ENDCASE
+
+            $)
+        $)
+        IF opt > 0 & opt ne 3 DO newline()
+$)
+
+AND debugvector(addr,len) BE
+
+$(      LET ascii = vec 16
+        LET ascptr, line, ch = 1, 0, 0
+        ascii%0 := 16
+        FOR line = 0 TO (len-1)/16 DO
+        $(      writes("  ")
+                writehex(2*addr+line*16,4)      // note 2*addr is physical addr
+                writes("  ")
+                ascptr := 1
+                FOR byte = 0 TO 15 DO
+                $(      ch := addr%(line*16+byte)
+                        writehex(ch,2)
+                        wrch(' ')
+                        IF byte=7 then wrch(' ')
+                        ascii%ascptr := (31<ch<128) -> ch , '.'
+                        ascptr := ascptr + 1
+                $)
+                wrch(' ')
+                writes(ascii)
+                newline()
+        $)
+$)
