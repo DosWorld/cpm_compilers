@@ -46,7 +46,9 @@ The Borland Pascal and Modula-2 products don't support command-line builds, so y
 
 The build scripts assume ntvcm is in your path. Linux systems generally have case-sensitive file systems and CP/M generally forces uppercase filenames. You're best off if you change all tool files, source files, and arguments to uppercase on Linux.
 
-If you're running Linux or MacOS and see perplexing compilation errors, it could be your source files don't have cr/lf line separators. Use unix2dos to add them; nearly all these compilers require them. Some compilers require a ^Z / 0x1a at the end of files. Since CP/M text files end in ^z/0x1a, unix2dos requires -f to force the conversion of what it thinks is a binary file.
+If you're running Linux or MacOS and see perplexing compilation errors, it could be your source files don't have cr/lf line separators. Use unix2dos to add them; nearly all these compilers require them. Also, some compiler support/include text files require CR/LF; the BCPL compilers are good examples of this. If you clone this repo on non-Windows it's possible the CR characters were stripped and you need to add them back with unix2dos.
+
+Some compilers require a ^Z / 0x1a at the end of files. Since CP/M text files end in ^z/0x1a, unix2dos requires -f to force the conversion of what it thinks is a binary file.
 
 The BA compiler is in the [tic-tac-toe and its applicability to nuclear war](https://github.com/davidly/ttt) repo. It generates code for 6502, 8080, 8086, x86, x64, arm32, arm64, and 64-bit RISC-V.
 
@@ -54,4 +56,4 @@ The Cowgol 0.6.1 compiler has not yet been tested with NTVCM and the benchmark a
 
 Here are runtimes for the benchmarks in milliseconds for a 4Mhz Z80 as emulated by [NTVCM](https://github.com/davidly/ntvcm/)
 
-![table](https://github.com/user-attachments/assets/61ac9286-469e-4846-be63-9d5bf3c2e2f5)
+![table](https://github.com/user-attachments/assets/0dcd3c36-62ef-486d-a747-f9cf1373efd7)
