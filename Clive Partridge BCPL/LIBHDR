@@ -1,0 +1,189 @@
+//  Globals in basic BCPL system
+
+GLOBAL
+ $( start:1
+    debug:2
+    stop:3
+    selectinput:11
+    selectoutput:12
+    rdch:13
+    wrch:14
+    unrdch:15
+    input:16
+    output:17
+    level:31
+    longjump:32
+    aptovec:40
+    findoutput:41
+    findinput:42
+    parms:45
+    endread:46
+    endwrite:47
+    rewind:48
+    stackbase:54
+    stackend:55
+    writes:60
+    writen:62
+    newline:63
+    newpage:64
+    packstring:66
+    unpackstring:67
+    writed:68
+    readn:71
+    writehex:75
+    writef:76
+    writeoct:77
+    getbyte:85
+    putbyte:86
+    result2:91
+ $)
+
+//  constants in basic BCPL system
+
+MANIFEST
+ $( 
+    endstreamch=-1
+    bytesperword=2
+    bitsperword=16
+    bitsperbyte=8
+    maxstrlength=255
+    firstfreeglobal=200  // in anticipation of reorganising the globals !
+    fg=firstfreeglobal
+    maxint=#X7FFF
+    minint=#X8000
+ $)
+
+
+//  Globals in expanded BCPL (G.Crosse 1985)
+
+GLOBAL
+  $(       // cpm, screen, keyboard
+
+    bdosHL:99
+    bdos:100
+    nbios:101
+    bios:102
+    biosHL:103
+    getargs:104
+    key: 105
+    keypressed:106
+    getkey:107
+    readline:108
+    clrscr:110
+    clrEol:111
+    gotoXY:112
+
+	  //  misc functions
+
+    max:115
+    min:116
+    setflag:117
+
+	  //  memory
+
+    bcpl:120
+    z80: 121
+    blklist:122
+    getblk:123
+    freeblk:124
+    initblk:125
+    move:126
+    fillchar:127
+
+	  //  strings
+
+    strbuffer:131
+    string:132
+    stringof:133
+    substr:134
+    insert:135
+    delete:135
+    join:136
+    addstr:137
+    copy:138
+    subcopy:139
+    pos:140
+    instr:141
+    compare:142
+    str:143
+    val:144
+    reads:145
+    getword:146
+    getstr:147
+    upcase:148
+
+	  //  paging, I/O  etc for NewBrain Expansion
+ 	  //  Globals 150-178 in SYSHDR and ZHDR
+              
+
+	  //  files and file-related
+
+    fopen:179
+    filesize:180
+    makefcb:181
+    seek:182
+    fileposR:183
+    filepos:184
+    bytepos:185
+    setrec:186
+    setbyte:187
+    setpos:188
+    fclose:189
+    chain:190
+    execute:191
+  $)
+
+//  constants used in expanded system
+ 
+MANIFEST
+  $(
+     // for command-line parsing
+    maxargs=10 
+    argvsize=1+maxargs+(128/bytesperword)    
+
+    mem=0 	// use to address memory as bytes (mem%addr)
+    f.size=15   // offsets into BCPL file control blocks
+    f.count=36  // which are returned by findinput()
+    f.mode=37
+    f.sought=38 // 6 extra bytes for random files
+    f.bin=39
+    f.sect=40
+    f.byte=41
+    f.rw=42
+    f.flag=43
+    f.buff=44
+    cr=32
+    r0=33
+    r1=34
+    r2=35
+
+//  constants for use with bdos functions
+
+    readsq= 20
+    writesq=21
+    sdma = 26
+    readr= 33
+    writer=34
+  $)
+
+//  constants for use with bios functions  - could be separate bioshdr file
+
+MANIFEST 
+  $(	WARM =  0
+	CONST=  1
+	CONIN=  2
+	CONOUT= 3
+	LIST=   4
+	PUNCH=  5
+	READER= 6
+        HOME=   7
+	SELDSK= 8
+	SETTRK= 9
+	SETSEC=10
+	SETDMA=11
+	READ=  12
+	WRITE= 13
+	LISTST=14
+        SECTRAN=15
+ $)
+

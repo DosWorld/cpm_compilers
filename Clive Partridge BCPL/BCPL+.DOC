@@ -1,0 +1,313 @@
+MICROBCPL -  Clive Partridge's Compiler with some knobs added to the system
+---------------------------------------------------------------------------
+Gordon Crosse 1985
+------------------
+
+The essential files for the system fall into 3 groups.  Group one is the
+compiler itself, which needs the file BWORDS. Group 2 is the set of four
+run-time modules - DRIVE2.OBJ, BCPL2.OBJ, BRTS.OBJ, and RTS2.OBJ.  These
+then use the linker LINK.COM  and the CP/M LOAD.COM.  The linker required
+is the SD SYSTEMS LINKER ( the z80 system supplied by Lifeboat amongst others.)
+The assembler is ZASM.COM (sometimes called ASM.COM, but this is the Z80 SD
+Assembler) which may be used to prepare extra machine-coded modules. The file
+LIBHDR is also required  to enable separate compilation of modules. Finally,
+you need SUBMIT.COM - to ease the linking process.
+
+Because I have made some additions to the runtimes (both DRIVE2 and RTS2 are
+affected) I have prefaced every linkable module with a '%', so that they may
+be distinguished and will sort to the top of the DISK.COM listing. These
+additions are described later.
+
+To make a bcpl program.
+-----------------------
+First edit the source with any editor - HiSoft's ED80 is nice and quick and
+small. I use Wordmaster.  The Turbo-Pascal editor is particularly useful as
+you can run the bcpl compiler from inside it, and after the inevitable errors
+you are immediately back to the editor. But it won't run submit.com.
+
+The filename for your source should have NO FILETYPE - the old compiler doesn't
+check and if you type, e.g. BCPL PROGRAM.BCP it will try to write a file
+PROGRAM.BCP.OBJ  i.e. it will overwrite your source code with object code !
+I have provided a simple mod in the re-compiled BCPL+.COM which aborts if any
+kind of extension, or even a full stop, is used.  I also took the opportunity
+to add a small feature - the  ^  character may now be used to indicate control
+characters as constants.  You can now write, e.g., ^M or ^P  instead of just a
+numeric value. (range ^@ .. ^_ is checked).
+
+If you have an error-free program the result is an .OBJ file of the Ycodes
+that will be interpreted by the runtimes (BCPL2 does the job). This is a
+relocatable file - but the order of linking has some constraints. It must
+the third module - straight after BCPL2 - and whatever other modules you
+link to your program the file RTS2 must be linked LAST. i.e. the following
+is the order of events after compilation:
+
+A> LINK %DRIVE2,%BCPL2,PROGRAM,........%RTS2
+A> REN PROGRAM.HEX = %DRIVE2.OBJ
+A> LOAD PROGRAM
+A> ERA PROGRAM.HEX
+
+(DECODE.COM will disassemble the y-codes in an .OBJ file.)
+
+The linker leaves a file DRIVE2.HEX and this should be renamed to your
+program name before being loaded.  The whole process is best done with
+SUBMIT  and I have provided a small utility (written in BCPL to show off
+some extensions) that will write a new submit file specially for your
+program. Use MAKESUB.COM like this:-
+
+   A> MAKESUB prog [ list of extra modules to link in addition to the runtimes]
+
+This automatically puts the program after DRIVE2 and BCPL2, and puts RTS2
+at the end. It then adds the REN commands and the LOAD command and finally
+ERA program.hex.  It also chops off any filetypes and adds '%' if you
+forget it.  Once you have the submit file you need type only
+
+   A> SUBMIT PROGRAM
+
+and the linkage is under way.  It is all slow and medieval after Turbo Pascal
+but there are several big advantages.  The most important are:
+
+a)  Separate compilation.  Programs can be written and compiled in small
+    testable gobbets, and these can be used in other programs without being
+    re-compiled. However, beware of changing things in 'libhdr' without
+    doing a recompile.
+
+b)  Small Size. Without adding any extras the standard runtimes add about
+    6 or 7 K to the program size (which, in turn is very compact since it
+    almost entirely one-byte codes).  This is comparable with HiSoft Pascal
+    which, like BCPL, will run on the unexpanded NewBrain. The compiler is
+    only 16K (only BBCBASIC (z80) rivals it for compact power).
+
+c)  Machine code is easily interfaced.  (It is quite tricky in most small
+    Pascals).  Several of the additional files like TEXT and ZCALL will
+    show (roughly) how it is done.  Only Forth and 'C' do it more simply
+    but have problems of their own. 'C' compilers like C/80 are generally
+    too big to run on the 32K machine even if their code is short. Forth
+    is difficult for larger programs and its syntax is not the most elegant.
+    The file SKELETON.CDE may prove useful as a guide.
+
+d)  BCPL can run faster than the Forths I have, and has about the richest
+    set of control structures in any language.  It shares with Forth the
+    ability to work very 'close' to the machine, and once you have grasped
+    its essence it is very quick to develop. The two things that caused me
+    most trouble till the penny dropped are a) that BCPL addresses are WORD
+    addresses (i.e. half of the actual z80 address) and that b) integers are
+    stored high/low rather than the z80 low/high.
+
+EXTENSIONS
+----------
+I have made no other changes to the compiler - but  it would be nice to have
+local procedures and static variables.  My additions are of two kinds:
+
+a)  machine-independent (other than z80) routines at high and low level.
+b)  System-interface.  Some of this is of interest only on the expanded
+    machine.
+
+>>  In %RTS2  are
+    --------
+    setflag(flag,mode) - There are 10 single-byte flags available for use
+           without needing global declaration. flag is a constant, or expr
+           between 0..9 to indicate flag used. modes are: 1 (just return
+           the value of the flag); 0 (set the flag to FALSE) and -1 (set
+           the flag to TRUE). Handy for system modules when you don't want
+           to clutter up libhdr. DANGEROUS because a particular flag  might
+           be used by the system or another module -  but until static
+           local variables are available something like this is necessary.
+           The point is that these flags are INITIALISED (to false) and if
+           some other variable were used, it would have to be specifically
+           set. This is a nuisance in system modules like seek() which need
+           to have NO requirements other than just being used.
+           I SUGGEST NOT USING THESE IN PROGRAMS & CAREFUL DOCUMENTATION!!!
+
+    key()  -  the equivalent of GET#6,x  in BASIC.
+    bdos(C,DE) - make bdos call, returning contents of A.
+    bdosHL(C,DE) - ditto, but return contents of HL.
+    upcase(string) - make whole string Upper case.
+
+    The above are in addition to the essential run-times.
+
+>>  In %XTRA  are various high-level additions
+    --------
+    keypressed() - was a key pressed? returns true or false.
+    getkey(mode) - return a keypress. mode=0 means don't wait, mode>0 = wait.
+    (note that the standard rdch() needs a CR as well).
+    z80(value) - convert a BCPL word-address to a machine byte-address. This
+                 protests if the value is bigger than 7FFFhex
+    BCPL(addr) - the reverse process. The address must therefore be EVEN and
+                 this aborts if it isn't.
+    min(A,B) and max(A,B) - as they say.
+    getstr(str,word,index) - a procedure to put next space-delimited word from
+    the string <str> starting at index (passed as a pointer, and updated.)
+
+    Also some extra screen-codes  ClrScr(), ClrEol(), gotoXY(col,row) - the
+    last assumes that the screen starts at 0,0.
+
+>>  In %BRTS  just one procedure added:
+    --------
+    readline(str,maxlen) - read a string from input into variable str
+    (this is a simpler alternative to the function reads() if you don't
+     want to carry the whole string package). maxlen should not be more
+    than 255.
+
+>>  STRING OPERATIONS  - I have modelled these on the Turbo Pascal (UCSDish)
+    style.  They need the low-level module %TEXT and the highlevel %STRG
+    and a slightly modified %DRIVE2, in addition to %XTRA.
+
+    %TEXT  - provides:
+             pos(substr,string) to return position of substring in
+             string, or 0 if not found.  It always searches from the start.
+             fillchar(addr, char, length) fills a block of bytes with a char.
+             The addr must be a z80 addr not a bcpl addr.
+
+             move(from,to,bytes) an 'intelligent' block copy so no worries
+             about overlapping. z80 addresses again!
+
+    %STRG  - the functions (marked *) that return a string (or rather, a
+             pointer to a string) make use of a temporary string buffer which
+             is declared in Drive2.  Space is reserved in this by
+             string(n)*  which reserves the space, sets the byte-count, and
+             returns its address.  The space is a circular queue of 1k so a
+             number of calls to such functions will quickly start overwriting
+             the earlier ones.  Such returned values are intended to be used
+             'on the fly' though they can always be stored safely by a call
+             to a procedure like copy() or join().  These procedures (NOT
+             marked *) are generally permanent, and change one or more of the
+             arguments.  e.g.  join(str1,str2)  concatenates str2 onto the
+             end of str1 and leaves only str2 unchanged. str1 and str2 MUST
+             be declared string constants or variables already assigned a VEC
+             of sufficient size ( true of all such procedures). However, the
+             function addstr(str1,str2)*  returns a NEW string leaving the
+             arguments unchanged.  A complete list follows.
+
+              ( BCPL )              (  BASIC equivalent )
+
+             stringof(num,char)*    (  C$ = STRING$(n,ch))
+             substr(str,pos,len)*   (  C$ = LEFT$,MID$,RIGHT$ etc.)
+             addstr(str1,str2)*     (  C$ = A$+B$ )
+             pos(pat,str)           (  C  = INSTR(A$,B$)
+             instr(str,pat,posn)    (  C  = INSTR(A$,B$,n)
+
+   N.B. the differing argument orders in the above. Instr() panders to BASIC.
+
+             copy(str1,str2)        (  A$ = B$ )
+             subcopy(str1,str2,pos,len)  ( A$ = MID$(B$,pos,len))
+             join(str1,str2)        (  A$ = A$+B$)
+             delete(str,pos,len)    (  ???? )
+             insert(str,substr,pos) (  ???? )
+             compare(str1,str2)     (returns 0 if str1=str2, -1 if
+                 str1 < str2  and 1 if str1 > str2  - just like 'C' )
+             val(str,base)          ( x = VAL(X$) - but any base )
+             ( returns 0 if a non-digit is in string, sorry! )
+             str(value,base)        ( X$ = STR$(x) - but any base)
+
+    Finally, (In this module because they use string()):
+
+    reads()* which returns a string from input. If you don't want all the
+          other string routines, don't use this version, but use the
+          straightforward readline() instead.
+
+    getword(str, ptr) - get next space delimited word from the variable str
+         starting at the index whose address is ptr. NB this is called with
+         getword(S,@ptr) - the addr ('@') operator is used to allow updating of
+         the index.  Again, there is a simpler version not using strings in
+         %XTRA called getstr(str,word,index).
+
+    N.B. insert() will allow a character constant like 'A' or 67 instead
+    a single-char string, look at the source - the idea can be used elsewhere.
+
+
+>>  In %BIOS1 and %BIOS2  are:
+    ---------     ------
+    bios(funct#, param)   -  use for functions returning value in A
+    biosHL(funct#,param)  -  use for functions returning value in HL
+
+    these both reference a lowlevel function nbios(option,param,funct#)
+    which shouldn't normally be used.  The function number is the offset
+    from the start of the BIOS jump table i.e. 0 is WARM, 1 is CONST,
+    2 is CONIN, 3 is CONOUT etc.  These work up to 15 - but not for the
+    extra table entries beyond since two of them are only two bytes. As
+    with everything in BCPL any nonsense you feed these functions will
+    be accepted without complaint by the compiler.
+
+>>  %FILES, %EXEC, %CHAIN are only the beginnings of what they seem to be!
+    ----------------------
+    %FILES will eventually contain all extensions, at low-level, concerned
+    with file I/O. Random files should be straightforward, i.e. a 'C' style
+    seek().  For the moment it has only a function to return the size (in
+    cpm records) of a file opened by findinput(), and a lowlevel makefcb().
+    The latter will expand the wild-card '*' to a run of ???? in either the
+    name field or the type field. It does NOT catch sillies like  f*nm.typ
+    which will produce the fcb entry f???????nm.  and a complaint from cp/m.
+
+    %CHAIN provides a method of calling another program, with commandline
+    arguments. At the moment it only works in conjunction with a high level
+    procedure, execute(), found in %EXEC.
+
+                execute(program,args)
+
+    There are  .arc  versions of these that use the string package, but as
+    they now stand only %FILES, %XTRA, and %CHAIN need be linked. (But the
+    MODIFIED %BRTS is needed too).
+
+
+>>  For the EXPANDED machine only.
+    ------------------------------
+    %ZCALL & ZHDR is a generalised interface (for expanded machines) to the
+    NewBrain ROM routines.  It uses an array of pseudo-registers to load
+    the actual z80 registers - as BBC BASIC does with A%,B% etc when making
+    a CALL - and the call is made with  zcall(number). The pseudo-registers
+    then contain the contents of the z80 registers after the call.  It is
+    surprisingly fast, but you can write specialised machine-code for any
+    that are too slow.  zcall()  is used to interface with the Streams and
+    devices of the Paged Input Output - see examples in PIO - and the use
+    of these may be quicker, if less portable, than bdos calls. The functions
+    include:
+
+    setReg(string,value1,value2...value7)
+
+       e.g. setreg("A /BC D /HL", 6,#x8000, 0, K) - note / (or &) to indicate
+           a double register.  The number of registers may vary from 1 to 7.
+           The comma or a space may separate the registers, but neither is
+           essential.   (modelled on writef() )
+
+    zcall(num) - num is best set with a MANIFEST constant e.g. zcall(ZFIX).
+
+>> %PIO   (NB  current version of s.open requires %SYS1)
+   -----
+    s.open(mode,stream,device,paramstring) - like it says and like BASIC.
+    s.close(stream)
+    s.get(stream)
+    s.put(stream,character)
+    etc.  This will allow Graphics extensions to be added quite easily.
+
+>> %SYS1  %SYS2  SYSHDR
+   ---------------------
+   This is part of a general interface to paged memory.  Just access to the
+   systempage is provided. Easy to extend this to bring in a video page.
+
+
+Some of this was written with care, some for fun, much in order to get some
+other thing done!  So the standard is very patchy and I expect a few (many?)
+bugs. Please let me know of any you find, or of improvements.  If some of the
+.OBJ files produce mysterious crashes, it is probably because I have altered
+LIBHDR and forgotten to recompile the module source!  Just recompile.
+
+LIBHDR
+-------
+   This contains Globals and manifests for everything except PIO & zcalls.
+Firstfreeglobal is set to 200.
+
+
+REMEMBER  ALL  ( ALL !) PROCEDURES & FUNCTIONS  MUST BE GLOBALS  and any
+variables that need to be seen outside a particular block.  There are NO
+STATICS - and  no need for the LET  ....    AND ..... AND .... convention.
+
+
+It is worth reading the compiler code (sometimes it's very readable, and
+sometimes it ain't - but there is no other way to find out everything that
+is supported.) Note, e.g.  that  #B00011001  etc is allowed for binary
+constants, that there are alternatives for many logical & comparison
+operators  ( like /\  and \/ ), that ; is rarely needed, that RESULTIS is
+the ONLY way of breaking out of a VALOF block etc. etc. etc.
+
+Gordon Crosse.  Tel. 0502 70 354.   march/July 1985.
+                                                                                         

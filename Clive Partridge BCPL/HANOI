@@ -1,0 +1,65 @@
+// comment
+
+GET "LIBHDR"
+ 
+MANIFEST
+ $( esc=#X1B
+    setcursor='Y'
+    clearscreen=12
+    number=13
+    horstart=' '
+    hordist=number*2+1
+    verpos=' '+18
+ $)
+ 
+GLOBAL
+ $( hanoi:101
+    place:102
+    remove:103
+    discv:104
+    towerp:105
+ $)
+ 
+LET place(tower,disc,temp) BE
+ $( temp := discv!tower
+    discv!tower := temp+1
+    wrch(esc)
+    wrch(setcursor)
+    wrch(verpos-temp)
+    wrch(towerp!tower-disc)
+    temp := disc-1+'A'
+    FOR x=1 TO disc+disc DO wrch(temp)
+ $)
+ 
+LET remove(tower,disc,temp) BE
+ $( temp := discv!tower-1
+    discv!tower := temp
+    wrch(esc)
+    wrch(setcursor)
+    wrch(verpos-temp)
+    wrch(towerp!tower-disc)
+    FOR x=1 TO disc+disc DO wrch(' ')
+ $)
+ 
+LET hanoi(from,too,using,n) BE
+ $( IF n>1 THEN hanoi(from,using,too,n-1)
+    remove(from,n)
+    place(too,n)
+    IF n>1 THEN hanoi(using,too,from,n-1)
+ $)
+ 
+LET start() BE
+ $( LET discvector=VEC 2
+    LET towerposition=VEC 2
+    discv := discvector
+    towerp := towerposition
+    FOR x=0 TO 2 DO discv!x := 0
+    FOR x=0 TO 2 DO towerp!x := x*hordist+number+horstart
+    wrch(clearscreen)
+    FOR x=0 TO 15 DO $(
+       wrch(13)
+       wrch(10)
+    $)
+    FOR x=number TO 1 BY -1 DO place(0,x)
+    hanoi(0,2,1,number)
+ $)

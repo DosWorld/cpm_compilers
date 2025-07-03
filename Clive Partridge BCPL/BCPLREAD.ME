@@ -1,0 +1,44 @@
+
+The following is a quick note on extensions provided to MicroBcpl.
+-----------------------------------------------------------------
+
+If you already have a standard system, note that %DRIVE2, %BRTS, and
+%RTS2 all have small additions, and that LIBHDR is expanded.
+
+Random file handling is on the way - via a 'C' style seek() - some
+patches to DRIVE2 and RTS2 have been made in readiness. e.g. the file
+control blocks are now four bytes longer.
+
+String Handling  -  needs %TEXT, %STRG, %XTRA
+---------------
+
+Bdos  calls - now built into the standard runtimes in %RTS2
+-----------
+Bios  calls - need %BIOS1 and %BIOS2
+-----------
+
+Chaining programs -  needs %FILES, %EXEC, %CHAIN
+----------------- 
+
+Dynamic memory allocation - in %FREE
+-------------------------
+
+For expanded machines only
+==========================
+
+Make ROM calls (Zcalls) - needs %ZCALL, & ZHDR
+------------------------
+
+Using paged I/O  - needs zcalls and %PIO, %SYS1 and SYSHDR
+---------------
+
+Pageing from highlevel - needs %SYS1,%SYS2 and SYSHDR
+----------------------
+
+Further notes are in BCPL.DOC  and  SKELETON.CDE
+
+Gordon Crosse  sept 1985
+
+
+*** EOF ***
+

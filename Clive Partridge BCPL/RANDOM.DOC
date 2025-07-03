@@ -1,0 +1,135 @@
+RANDOM FILE HANDLING
+--------------------
+These notes are for the bcpl module %RAND and patched %RTS2 & %DRIVE2
+I think the seek() function now works well enough to be let loose.
+
+
+The useful functions are:
+   1) fileposR(f)  -  returns the fileposition in records.       
+   2) bytepos(f)   -  returns the byte position within the record.
+   3) filepos(f)   -  returns the byte position in the file. 
+   4) seek(f,offset,type)  
+   		   -  position the file for next rdch() or wrch().
+		   -  returns 0 for success, -1 for failure.
+   5) fopen(name,mode) 
+	           - open a file for random access, return fcb.
+   6) fclose(f)    - close a random file.
+
+<f> is the (z80) address of the bcpl file-control-block which is returned
+    by findinput() or findoutput() and fopen()
+
+<offset> may be in records or bytes. Types are as follows:
+    0  - bytes from start of file.
+    1  - bytes from current position ( +ve or -ve)
+    2  - bytes from end of file.
+    3  - records (128 bytes) from start of file.
+    4  - records from current position.
+    5  - records from end of file.
+    6  - identical to 5 for offset of 0 but for -1, -2 etc the
+         file is moved back by record BOUNDARIES. Thus it is like
+         a reverse of 3.
+
+<name> any legal cpm file name, upper or lower case.
+<mode> read-only   = "r" or 'r'   and "rb" for binary file
+       write-only  = "w" or 'w'   and "wb" for binary file
+       update (r/w)= "u" or 'u'   and "ub" for binary file
+
+
+Files opened for read-only or update MUST EXIST - or fopen() returns 0.
+Files opened for write-only must NOT exist, since fopen() will create
+a new one without checking. It is a swift way to erase a file!
+
+Files  opened for update may be both read and written to by the
+switching between selectinput(f) and selectoutput(f).  You MUST
+use fopen() for random files, and close them with fclose().
+
+Before doing anything else with a file you should seek(f,0,0) to set
+the start.  fclose() also does a seek(f,0,2) before closing, and this
+is the way to add on to the end of a file.  Be careful - ^Z is not
+removed if you jump over eof - i.e. you should seek(f,0,2) and then
+write SOMETHING to the next byte. It is an error to seek beyond the
+end of any but an update file.
+
+NOTE LIMITATION - as yet - to shortish files, 255 records only. It
+should be easy to extend setpos() to cope with the full cpm range, but
+it means watching the extents of the file etc. Filepos() is, of course
+limited by the signed integers of BCPL - hence the separate use of
+records and bytes in seek().
+
+*****************
+
+simple example of random access - look at RANDOM which is a test program.
+
+let Rstring = VEC 64  // or string(128)
+f := fopen("test","u")   // f = 0 if not successful.
+seek(f,0,0)  // initialise
+selectinput(f)
+if seek(f,150,1) = 0 then readline(Rstring,17)  // read bytes 150..167 
+writes(Rstring)  // show it on screen
+selectoutput(f)
+if seek(f,5,3) = 0 then writes(Rstring)  // copy it to record 5, byte 0..17
+selectinput(findinput("con:"))   // these are candidates for snappy built-in
+selectoutput(findoutput("con:")) // functions!!
+fclose(f)
+
+******************
+
+RANDOM.COM   -  a test program to play with a file.
+	     -  since it is easy to ruin a file, don't use anything 
+		important or employ the following:
+RANGEN.COM   -  a program to make a regularly patterned file for use with
+		random.com. Give size as number of full records, then add
+		any extra bytes you may want for an incomplete final record.
+RTEST.COM    -  a program to read the above files to check their contents.
+
+******************
+
+
+NOTE THAT %RAND  WILL NEED TO BE COMPILED WITH BCPL+.COM SINCE IT USES '^Z'
+----------------------------------------------------------------------------
+
+
+DRIVE2 has now been modified to reserve 6 extra bytes in each file control
+block (8 files are allowed - more could easily be used either by changing the
+constants NOBUFS in DRIVE2 & RTS2 or by making new blocks at high level), and
+RTS2 matches it.  Two of these f.sect and f.byte run in parallel with the
+existing counters (cpm's CR field at f+32 and bcpl's buffer-count at f.count)
+but do not always contain the same values!  Two more are used as flags, f.rw
+returns 0 if buffer has been changed by a read, or 1 if it has been changed by
+a write (these are,strictly, redundant) and is normally set to 255. f.bin is
+set to 1 if the file is binary.  The bcpl flag f.mode in standard useage sets
+just bit 0 ( write = 1, read = 0) but it is now extended to set bit 1 if file
+is in update mode (i.e. f.mode = 3 for update). This is all reflected in the
+patches to rdch() wrch() and the file closing routines in RTS2.
+The values of f.sect,f.byte,f.bin etc are contained in manifest declarations in
+LIBHDR. They are each the byte-offset into the fcb.
+
+The chief problem has been the fact that the standard Rdch() and 
+Wrch() differ in how they access the file buffer.
+
+RDCH  first increments the counter (&127) and if it has become 0
+reads in the next record - incrementing the current record pointer.
+It then returns the character at the new position, or 255 for EOF.
+So, the counter always points to the NEXT character to be read,and
+actually represents the position of the last character read. If a
+new record has been read, then rdch() has been patched to set the
+RW flag to 0 (- otherwise it is -1 for no-op and 1 for write.)
+
+WRCH  first puts the character at the current count position in the
+buffer, then increments the counter (&127) - so the counter points
+to either the NEXT write position or the NEXT BUT ONE read position.
+If the counter has incremented to 0 then the whole of the current
+buffer is written out to the record pointed to by the current record
+pointer.  This would mean that a seek() to a particular byte would
+be the next byte for a Read, but the last byte for a write. This is
+very inconvenient and non-symetric so I have written a NEW version
+of DOUT - the part of wrch() that deals with disk files.  If the file
+was opened as a random file ( with fopen() ) the old wrch() is by-passed,
+and WRAND used instead. This will NOT write to a file opened as read-
+only ('r' mode).
+     Note that  the new routine treats the buffer exactly as rdch()
+does - PRE incrementing the count. It writes out the buffer when the
+count has reached 127. If the file was opened for update ('u' mode),
+then the next record is read in.
+
+Gordon Crosse. Oct 1985.

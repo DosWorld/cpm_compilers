@@ -1,0 +1,226 @@
+//  This program is only designed to work on small machines
+
+GET "LIBHDR"
+
+MANIFEST
+ $( link0=0
+    link1=1
+    unresolved0=2
+    unresolved1=3
+    value0=4
+    value1=5
+    name=6
+    nameless1=name-1
+    size=12
+ $)
+
+MANIFEST
+ $( romsize=8192
+    mask=8191
+ $)
+ 
+GLOBAL
+ $( readline:101
+    new:102
+    dictionary:103
+    read:104
+    error:105
+    buffer:106
+    hashtable:107
+    hashval:108
+    search:109
+    create:111
+    run:112
+    free:113
+ $)
+
+LET error(message) BE
+ $( writef("*n%s*n",message)
+    FINISH
+ $)
+
+LET hashval()=VALOF
+ $( LET x=0
+    FOR y=1 TO 6 DO x +:= buffer%y
+    RESULTIS x&255
+ $)
+
+LET search()=VALOF
+ $( LET x=hashtable!hashval()
+     $( IF x=0 THEN RESULTIS 0
+        IF VALOF
+         $( FOR y=1 TO 6 DO
+             $( IF buffer%y=0%(x+y+nameless1) THEN LOOP
+                RESULTIS FALSE
+             $)
+            RESULTIS TRUE
+         $) THEN RESULTIS x
+        x := ((0%(x+link0))<<8)+(0%(x+link1))
+     $) REPEAT
+ $)
+
+LET new(n) BE
+ $( free -:= n
+    IF (free>>1)<(dictionary>>1) THEN error("Run out of memory")
+ $)
+        
+LET create()=VALOF
+ $( LET x=search()
+    TEST x=0 THEN
+     $( x := hashval()
+        new(size)
+        0%(free+link0) := (hashtable!x)>>8
+        0%(free+link1) := (hashtable!x)&255
+        0%(free+unresolved0) := 255
+        0%(free+unresolved1) := 255
+        0%(free+value0) := 255
+        0%(free+value1) := 255
+        FOR y=1 TO 6 DO 0%(free+y+nameless1) := buffer%y
+        hashtable!x := free
+        RESULTIS free
+     $)
+    ELSE RESULTIS x
+ $)
+
+LET start() BE aptovec(run,stackend-stackbase-1000)
+
+LET run(dict,dictop) BE
+ $( LET buff=VEC 40
+    LET hash=VEC 255
+    LET x,z,a,b=?,?,?,?
+    LET lastaddress=0
+    LET parmpoint=1
+    LET filename=VEC 20/bytesperword
+    LET code,offset=dict,0
+    FOR y=0 TO mask DO code%y := 255
+    free := (dict+dictop)*bytesperword
+    dictionary := dict*bytesperword+romsize
+    buffer := buff
+    hashtable := hash
+    FOR y=0 TO 255 DO hashtable!y := 0
+    WHILE parms%parmpoint=' ' DO parmpoint +:= 1
+     $( x := 1
+        UNTIL parms%parmpoint=' '|parms%parmpoint=','|parmpoint>parms%0 DO
+         $( filename%x := parms%parmpoint
+            x +:= 1
+            parmpoint +:= 1
+         $)
+        parmpoint +:= 1
+        filename%x := '.'
+        filename%(x+1) := 'O'
+        filename%(x+2) := 'B'
+        filename%(x+3) := 'J'
+        filename%0 := x+3
+        x := findinput(filename)
+        writes(filename)
+        FOR y=filename%0 TO 16 DO wrch(' ')
+        IF x=0 THEN error("Can't open file")
+        selectinput(x)
+         $( readline()
+            SWITCHON read(4) INTO
+             $( CASE 0 : x := ((read(2)<<8)+read(3))+offset
+                    z := x&mask
+                    FOR y=0 TO read(1)-1 DO code%(z+y) := read(5+y)
+                    TEST lastaddress=-1 THEN writef("  From %X4",x)
+                    ELSE IF lastaddress~=x THEN writef(" to %X4*n   *
+                    *                        From %X4",lastaddress-1,x)
+                    lastaddress := read(1)+x
+                    ENDCASE
+                CASE 1 : endread()
+                    BREAK
+                CASE 2 : x := create()
+                    IF (0%(x+value0)&0%(x+value1))~=255 THEN
+                     $( FOR y=1 TO 6 wrch(buffer%y)
+                        error("Global defined twice")
+                     $)
+                    z := (read(5)<<8)+read(6)+offset
+                    0%(x+value0) := z>>8
+                    0%(x+value1) := z&255
+                    ENDCASE
+                CASE 3 : x := create()
+                    new(4)
+                    0%free := 0%(x+unresolved0)
+                    0%(free+1) := 0%(x+unresolved1)
+                    0%(x+unresolved0) := free>>8
+                    0%(x+unresolved1) := free&255
+                    x := (read(5)<<8)+read(6)+offset
+                    0%(free+2) := x>>8
+                    0%(free+3) := x&255
+                    ENDCASE
+                CASE 4 : FOR y=5 TO read(1)+4 BY 2 DO
+                     $( x := (((read(y)<<8)+read(y+1))+offset)&mask
+                        z := (code%(x+1)<<8)+code%x+offset
+                        code%x := z&255
+                        code%(x+1) := z>>8
+                     $)
+                    ENDCASE
+                CASE 5 : offset := read(5)=0->0,lastaddress&mask
+                    writes(read(5)=0->"Absolute","Relative")
+                    b := lastaddress
+                    lastaddress := -1
+                    ENDCASE
+             $)    
+         $) REPEAT
+        IF lastaddress=-1 THEN
+         $( lastaddress := b
+            writef("  From %X4",lastaddress)
+         $)
+        writef(" to %X4*n",lastaddress-1)
+     $) REPEATUNTIL parms%(parmpoint-1)=' '|parmpoint>=parms%0
+    FOR y=0 TO 255 DO
+     $( x := hashtable!y
+        WHILE x~=0 DO
+         $( IF (0%(x+value0)&0%(x+value1))=255 THEN
+             $( FOR z=name TO name+5 DO wrch(0%(x+z))
+                writes(" has not been defined*n")
+             $)
+            z := (0%(x+unresolved0)<<8)+0%(x+unresolved1)
+            WHILE z~=#XFFFF DO
+             $( a := (0%(z+2)<<8)+0%(z+3)
+                WHILE a~=#XFFFF DO
+                 $( b := a&mask
+                    a := (code%(b+1)<<8)+code%b
+                    code%b := 0%(x+value1)
+                    code%(b+1) := 0%(x+value0)
+                 $)
+                z := (0%z<<8)+0%(z+1)
+             $)
+            x := (0%(x+link0)<<8)+0%(x+link1)
+         $)
+     $)
+    writes("Link process complete blowing and verifying ROM*n")
+    selectoutput(findoutput("PUN:"))
+    selectinput(findinput("RDR:"))
+    wrch(255)
+    wrch(128+3)
+    wrch(0)
+    wrch(0)
+    wrch(mask&255)
+    wrch(mask>>8)
+    FOR x=0 TO mask DO
+     $( wrch(code%x)
+	z := rdch()
+	IF code%x~=z THEN
+	 $( selectoutput(findoutput("CON:"))
+	    writef("Error in ROM writing at address %x4, data was %x2*
+		* and %x2 was read on verifying*n",x,code%x,z)
+	    FINISH
+         $)
+     $)
+ $)
+
+LET readline() BE
+ $( LET x,ch=0,0
+     $( ch := rdch()
+        buffer%x := ch
+        x +:= 1
+     $) REPEATUNTIL ch='*n'
+ $)
+
+LET read(n)=VALOF
+ $( LET x,y=buffer%(n+n-1)-'0',buffer%(n+n)-'0'
+    IF x>=10 THEN x -:= 'A'-'0'-10
+    IF y>=10 THEN y -:= 'A'-'0'-10
+    RESULTIS (x<<4)+y
+ $)
+

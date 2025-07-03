@@ -1,0 +1,5 @@
+LINK %DRIVE2,%BCPL2,RANDOM,%BRTS,%XTRA,%RAND,%FILES,%STRG,%TEXT,%RTS2 /U
+REN RANDOM.HEX = %DRIVE2.HEX
+LOAD RANDOM
+ERA RANDOM.HEX
+

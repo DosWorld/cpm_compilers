@@ -1,0 +1,127 @@
+// test random access
+
+get "libhdr"
+
+global $( show: fg   
+          getnum: fg+1
+          types:fg+2
+          dowrite:fg+3
+       $)
+
+// use manifests for the seek types
+
+manifest $(
+	    BytesFromStart=0
+	    BytesFromCurrent=1
+	    BytesFromEnd=2
+	    RecordsFromStart=3
+	    RecordsFromCurrent=4
+	    RecordsFromEnd=5
+	 $)
+
+let start() be
+$(
+   let ch,name,mode,f,x,t,r = ?,?,?,?,?,?,?
+
+   $(  writes("*nFile? ")
+       name := (reads())
+       if name%0 = 0 then finish
+	writes("*nFile Modes are 'r','w','u','rb','wb' or 'ub'*n")
+        writes("Enter Mode: ")
+        mode := (reads())
+       f := fopen(name,mode)   
+       test f \= 0 then
+         $(  writef("*n%s  has %i  records*n",upcase(name),filesize(f))
+          $( writes("*nType of seek? ")
+             t := getnum()        
+	     test 0 <= t <= 6 then
+               $(
+		  writes("Offset? ")
+                  x := getnum()
+		  selectinput(f)
+		  debug(f,0)
+                  test seek(f,x,t) = 0 then
+                      show(f)  
+	          else writes("*nUnsuccessful Seek")
+                  selectinput(findinput("con:"))
+		  debug(f,1)
+ 	       $)
+	      else writes(" - Illegal seek type")
+              writes("*nESC to Finish, 'w' for a Write - Any Other for More")
+              ch := getkey(1) 
+	      test ch = 27 then break
+	      else if ch = 'w' then  $( dowrite(f) debug(f,1) $)
+              newline()           
+           $) REPEAT
+         $)
+	else writef("*nCan't open %s *n",name)
+        fclose(f)   
+   $) REPEAT
+$)
+
+let getnum() = val(reads(),10)
+
+// show the 32 chars from current position, then back up.
+
+let show(f) be
+$( 
+   let text= VEC 16
+   let x = ?
+   let rec = fileposR(f) // get current rec & buffpos before the read
+   let byte = mem%(f+f.count) // use the bcpl counter
+   x:= readline(text,32)
+
+   writef("*nRecord before read = %i *tByte posn before read = %i *n",
+             rec, byte)
+   newline() 
+   wrch(^N)
+   types(text)
+   wrch(^O)
+   seek(f,-(x+1),bytesFromCurrent)  // back up to position
+   writef("*n   Byte posn now: %i5  ", bytepos(f) )  
+   writef("*nFileposition now: %i5*n", filepos(f) )
+   if mem%(f+f.buff+bytepos(f)) = ^Z then
+   $( writef("*n%c++EOF++  %i %c*n",^N,mem%(f+f.count),^O) $)
+$)
+
+let types(S) be
+$( let ch = ?
+   for i = 1 to S%0 do
+       $(  ch := S%i
+           if ch >= '@' then
+	     $( wrch(^O) wrch(' ') wrch(^N) $)
+           test ch > 31 then wrch(ch)
+           else writef("%c %c%i %c %c",^O,^N,ch,^O,^N)
+       $)
+$)
+
+LET dowrite(f) BE
+$( let text = ?     
+   writes("*nType a string*n*t- ")
+   text := reads()
+   selectoutput(f)
+   writes(text)
+   selectoutput(findoutput("con:"))
+$)
+
+// not the official debug utility !
+LET debug(f,n) BE
+$(
+   test n = 0 then writes("*nENTRY*t")
+   else writes("*nEXIT*t")
+   writef("CR = %i *tSECT = %i *tBYTE = %i *tEOF = %s ",
+           mem%(f+cr),mem%(f+f.sect),bytepos(f),
+           (mem%(f+f.count) = 255)->"TRUE","FALSE")
+   writes("*nLast File Access was ")
+   switchon mem%(f+f.rw) into
+     $( case 0: writes("READ") endcase
+	case 1: writes("WRITE") endcase
+	default: writes("NONE")
+     $)
+$)
+
+// needs %xtra, %strg, %text, %rand,%files
+// and patched %rts2.  This and %rand must be compiled with the 
+// extended compiler that recognises ^Z etc for control char constants.
+
+

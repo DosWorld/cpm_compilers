@@ -1,0 +1,881 @@
+A Complete BCPL System Aimed at Micro-computers
+     
+Copyright (C) 27th April 1981:  Clive Partridge
+
+Summary of Original Aims
+
+The object of the project was to construct a complete implementation of
+BCPL, including a compiler, with the specific objective of making it
+suitable for use with very small and limited microprocessor based systems,
+firstly on the Cambridge IBM 370, and then to implement it on a suitable
+microcomputer. The aim was for the system to comprise of less than 16K bytes
+of software.
+
+Work Completed
+
+The compiler and a primitive 370 implmentation was completed successfully,
+and a full implementation was done on the Mostek SYS-80F microcomputer, which
+is a Z80 based machine with dual floppy disk drives. All parts of the system
+work completely, and the characteristics of the final system easily exceed the
+originally envisaged system performance. The system is sufficiently compact
+that I see no major difficulty in implementing it on a machine as small as say
+a ZX81 with 16K RAM.
+
+Original Proposal
+
+BCPL is an elegant powerful language, whose structure allows efficient
+code to be compiled, and has a simple interface to the outside world. These
+features make it an eminently suitable language for use in microcomputers.
+The design requirements of a microcomputer based system are vastly
+different from those of a mainframe based system for the following reasons:
+
+1) Fast backing store is not necessarily available.
+2) Programs should be written that are not self-modifying, to enable them
+   to be put into FCM.
+3) Speed of execution is not of crucial importance.
+4) Efficient use of memory is of the utmost importance, which implies that
+   the size of both the system and compiled programs should be small.
+
+The aim of the project will be to build a BCPL compiler and at least one
+full implementation, with an arbitrary target of a total system size of
+16K on a suitable micro.
+
+Initial Design Decisions
+
+Clearly the compiler will have to be written in a high-level language.
+I have decided to write it in BCPL, as not only is it a very convenient
+language for writing compilers but also it will allow me to bootstrap the
+system to any secondary implementation from any primary implementation.
+The primary implementation will be on the IBM 37C, as not only does it
+support BCPL but also provides a software support environment highly
+suitable for the development and debugging of large programs. The initial
+run-time system will also be written in BCPL, which will provide the basic
+structure for any assembly written system.
+
+The code that the compiler will produce will be for a theoretical
+machine, which will have few (if any) registers, but will manipulate one
+(or more) stacks. The advantage of this is that instructions, having
+usually implicit arguments, will be mostly 1 byte long. These instruction 
+codes will be called ycodes for historical reasons.
+
+For example, YADD will add the top two items on the stack, leaving the
+result on the stack. YCALL will be an instruction with one argument N. This
+will cause the top N items on the stack to be passed as parameters to the
+procedure whose address is the (N+1) th item on the stack, which is called.
+
+The reasons for this choice of object code are:
+
+1) It provides very compact code.
+2) The compiler will be completely machine independent, requiring no
+   equivalent of an 'OCODE translator', and will (providing the compiler
+   is compiled by itself) be independent of the size of the basic BCPL
+   unit that is required for a given implementation.
+
+The main disadvantage of this system is that for every implementation a
+new interpreter of the object code will have to be written. Since however
+the recommended method of implementation will be to use the Ycodes to
+index a table of addresses of routines to perform the required operation
+(known for historical reasons as the X-table), this is not much more work
+than is usually required for the run-time system of a conventional system
+on a micro which is using the object code to access system routines in
+some manner anyway.
+
+I also hope to condense occurences of constants by using special
+Ycodes to load constants onto the stack, for example YPUSH1 will expand
+the one byte argument into four bytes (by right justification) and put the
+result on the stack.
+
+I will allow myself to deviate from the BCPL standard if this becomes
+necessary, although this is something that I would not like to do.
+
+The compiler will produce non-self-modifying code for reasons already stated.
+
+There are two approaches I am considering for the compiler:
+
+1) Two passes are made with the intermediate code being stored on a
+   possibly serial device.
+2) The code is kept in RAM so back-tracking can take place.
+
+The advantages and disadvantages of both these approaches are largely
+self-evident and it may prove possible to try both as the difference only
+pertains to the compilation of unknown quantities.
+
+Plan of Work
+
+1) Write BCPL compiler in BCPL on the 370.
+
+Depending on the outcome of step 1, some of the following may be contemplated.
+
+2a)Extension of the system to support conditional compilation, coroutines,
+   debugging aids etc.
+2b)Implementation of the system on other machines.
+2c)General optimisation of the system.
+2d)If the orginal system is too large, the production of a reasonable
+   subset to fit the target size.
+
+Clearly the exact time-table must be highly nebulous as there may prove
+to be complications and unforseen difficulties. In particular, the
+the implementation on a micro will require a certain amount of time-consuming
+assembly programming for the run-time system.
+
+Resources Required
+
+Use of IBM 370, and systems for further implementation.
+
+Method of Boot-Strapping
+
+1) The BCPL compiler written in BCPL, is compiled by the 370 compiler, in
+   the usual way.
+2) The compiler is run, using the BCPL source version of itself as input.
+   This produces the BCPL compiler in the standard system object code (i.e.
+   this will consist of a lot of Ycodes).
+3) The binary is transferred to the target machine, where a run-time       
+   system has already been written.
+4) Any changes to the compiler can be easily implemented on the target
+   machine, by using the compiler to recompile itself.
+
+Value of Work
+
+I hope the project will give practical insight into:
+
+1) The amount of compression of programs provided by the proposed
+   instruction set, bearing in mind the theoretical possibility that the
+   instruction set could be implemented in micro-program.
+2) The amount of overhead the interpretation of the compiled code has
+   (given an assembler written run-time system).
+3) The feasability of using one stack for both the usual BCPL run-time
+   stack and that used by the theoretical machine. Also of interest is
+   whether this stack can be fiddled into the hardware stack on a Z80 16 bit
+   basic unit implementation.
+4) Efficient methods of holding identifiers on a BCPL run-time stack during
+   compilation.
+5) Whether any problems exist due to the requirement that the programs are
+   not self-modifying.
+6) How much simplification there is of the compiler and its data structures
+   due to the stack based nature of the cobject code.
+
+Initial Design Motivations and Decisions
+
+The ideals that prompted the design of this system were to implement a
+high level language on microcomputers that would previously have been
+considered too small and lacking in peripherals to use with anything other
+than BASIC. BCPL was the obvious choice because it is a block structured
+language that has widespread appeal, and its great simplicity makes it
+easy to implement.
+
+The implementation of BCPL systems and compilers is now something which
+has been brought to a fine art through the years. However the standard method
+of implementation was considered by me to be too expensive in terms of size
+of compiled programs and the workspace that was required by the compiler.
+
+In order to cut down the size of compiled programs I designed a special
+code which I called Ycode which would run on a theoretical machine of some
+sort. Any given implementation would have to emulate the operation of this
+theoretical machine, usually by interpreting the Ycode. The use of an
+interpretive code also results in a totally portable compiler, which is of
+equal applicability to all types of microprocessor. I also decided that in
+order for the compiler not to use so much workspace, the syntax analysis
+trees and such like would have to be done away with. This meant a one-pass
+compiler. This fact also contributed to the design of the Ycode as it would
+have to reflect the syntax driven nature of the code generator of the
+compiler. This approach also has the merit of not going through any
+intermediate code, which removes the problem of what to do with the
+intermediate code.
+
+It was clear from the outset that this approach would have its
+limitations, but I considered it acceptable that some concessions would
+have to be made to fulfill the original design aims. I was greatly
+encouraged by the response of those people I discussed it with who all
+seemed to have the opinion that what I was attempting to do was impossible.
+This seemed an excellent reason to attempt to do it.
+
+Chronological History of Work on Project
+
+As soon as the proposal was handed in, I started writing the compiler
+(about the beginning of November 1980). The compiler was continually tested
+and debugged as much as possible at each stage of its development. At the
+beginning of January 1981, it was sufficiently powerful to compile itself,
+and work started on the Ycode interpreter for the Z80.
+
+The development of the interpreter caused many changes in the compiler,
+for example, it was realised that for modules to be relocatable, no Ycodes
+can take absolute addresses as arguments. The interpreter was tested as much
+as possible by running hand Ycoded programs. The I/O run time system was
+tested in the same way. It was a tribute to that testing that when the
+compiler was first transferred to the SYS-80F system that it worked first
+time.
+
+The compiler was at this stage far too slow for my liking, as it took the
+SYS-80F a long time to compile the simplest of programs. This was because the
+lexical analysis used was of a primitive nature only intended originally to
+allow the syntax analysis to be tested. The lexical analyser was then totally
+rewritten, and the compiler subsequently ran about 8 times faster. Since then
+much work has been done in improving the overall performance of the compiler,
+and implementing the rest of the run-time library on the SYS-80F.
+
+Design Problems Encountered During the Development of the System
+
+I had initially thought there to be no obstacle in performing syntax
+analysis of BCPL in one pass. However it turned out that there was one
+feature of the language that was impossible to implement by a one pass
+compiler, that being the truth value mode concept. Although expressions
+involving the & and i operators can be syntactically decoded in the same way
+as all other expressions, the semantic interpretations of the & and i 
+operators are dependent on very peculiar syntactic context conditions. In
+other words, a naive syntactic definition of expressions which ignores the
+truth value mode concept as being a purely semantic question is inadequate
+to allow correct definitions of semantic functions of the syntactic
+constructions involving & and i operators. Truth value mode had to be 
+abandoned, therefore. It would of course be trivial to add Algol-68 like
+ANDF and CRF operators. It seems to me very unwise for the & and i operators
+to have two quite different meanings depending on quite complex rules.
+(NB see later notes.)
+
+The other major problem I encountered was that of static storage.
+Initially I did implement static storage, but I soon realised that the space
+for it would have to be allocated within the code of the module itself, or by
+some trick which amounted to the same thing. However, I considered this to be
+a totally unsatisfactory state of affairs and I abandoned static storage.
+Although possible schemes for what I termed 'relocatable constant expressions'
+to facilitate the use of non-global procedures were contemplated, such things
+would be dependent on what was doing the relocations, compiler or linker or
+program initialiser, and one could easily see circumstances where each method
+would be far preferable to the other. These and other considerations made me
+decide to put the question aside totally as being outside the scope of the 
+current project, although if time had allowed I beleive that I could have
+resolved the issue satisfactorilly. A proposed solution to this problem is
+given in another section.
+
+The Compiler
+
+Overview
+
+The compiler is designed with emphasis on compactness, modularity,
+transportability, and simplicity rather than execution efficiency. In
+retrospect, it is evident that many parts of it resemble very closely the
+standard BCPL compiler. However, the compiler operates on one pass only, in 
+order that it does not require the vast workspace that syntax trees etc.
+take up. This has led to certain restrictions on the language, but these
+have been considered acceptable.
+
+Parameterisation of the Compiler
+
+The compiler has three main parameters. Firstly BYTES PER WORD which
+gives the number of bytes that comprise a BCPL word in the system that the
+compiler is running in. TBYTES PER WORD is the number of bytes in the word
+the system that the compiled program will run on. The other is MAXSIZE.
+2**((MAXSIZE+1)*8) is both the largest number of words in a stack frame and
+the maximum size in bytes of a module.
+
+Structure of the Compiler
+
+The compiler is structured only in a rough sense. Textually the
+procedures are mixed up, but they can be catagorised into four main areas:
+
+1) Input - which delivers the characters of input files into the global CH.
+2) Lexical analysis - which delivers information about the next symbol into
+   SYM andSCANRES.
+3) Syntax analysis and compilation which runs the whole show.
+4) Output - which consists of low-level compilation routines.
+
+The delineation of the jobs which each section performs is very vague and
+the interfaces between them are similarly difficult to define. It is my
+belief, however that this does not necessarily indicate a badly written
+compiler. I believe that a compiler, like any large program, is basically a
+collection of algorithms - some simple, some complex - which together
+perform a computation. It should not be the worry of the programmer to design
+interfaces between them. This should be the job of the programming language.
+In this spirit I have as much as possible seperated the algorithms out, 
+giving each its own procedure whose function is decribed by a comment about it
+I believe that in this state, the workings of the compiler are quite clear to
+the reader and it is possible to make alterations with great ease.
+
+Lexical Analysis
+
+Lexical analysis is performed by a group of procedures operating under
+SCAN, which is the routine that delivers the next symbol to the syntax
+analysis. Tags are all handled by FINDTAG, which searches through the tag data
+structure for a tag and if it fails to find it, augments the data structure
+with the new tag. This is done without any knowledge of the nature of the tag,
+be it basic symbol, identifier or whatever. The tag data structure is based
+on an open hash table which has been found to be neat and efficient. The tag
+data structure, which also incorporates identifier information, is described
+below.
+
+When the compiler initialises, it reads in afile which contains a list of
+tags and indicates the basic symbols they correspond to. This gives the
+facility that the user can, if he feels so perverse, substitute his own tags,
+for example their equivalent in a foreign language. The representations of
+symbols other than by tags is built into the compiler and can only be altered
+by changing the compiler.
+
+The lexical analyser also performs the getting of files as indicated by
+GET directives. This operates on a private list called GETLIST. When a file is
+being got, the old stream is stored on top of the list. When an input stream
+ends, the list is examined, and if it is empty the end-of-input is signalled,
+otherwise the top item is removed from the list and used to restore the correct
+stream for current input.
+
+Note that the GET system is only useful for situations where more than
+one file can be meaningfully kept open on the backing store device that is
+being used, so a different (and less powerful) construction will be needed
+for implementations with only serial backing storage peripherals.
+
+Syntax Analysis and Code Generation
+
+The syntax analysis is performed in the usual way with no back-tracking.
+The main routines that do this are READEXP which reads an expression,
+READCOM which reads a command and READEF which reads a definition. Some other
+syntactic constructs also have their own routines. The code-generation is
+syntax driven. This is made possible by the fact that the Ycodes were
+designed specificaly with this in mind. All compilation is done through the
+routine COMPILE, which facilitates the alteration of the way the object code is
+handled.
+
+Format of Object Code Output
+
+At the moment, the object code is held internally until the compilation is
+finished, and then it outputs the code in Mostek Hex which is a machine and
+language independent format of what is usually essentially binary information.
+This was for the convenience of the SYS-80F system which used that format as
+input to the standard object module linker program. Nevertheless it would be
+trivial to output either in some other format or to modify the compiler to
+execute the code immediately although some tricks may be needed to do this 
+which are implementation dependent.
+
+Resolution of Forward References
+
+It is inevitable that some backtracking of the object code must take place.
+This has been kept strictly to a minimum, but that which needs to be done is
+done by the routine RESABS. One might for example, decide that instead of the 
+entire object code being buffered before output, the COMPILE routine would
+output the code as it goes, and RESABS could then cause output information
+pertaining to the unresolved forward references that might be processed by a
+linker (This is possible with Cambridge Hex, but the simple approach of
+buffering the object code has been retained for reasons of simplicity and
+transportability).
+
+Jump Lists
+
+Jump Lists are lists of forward (or sometimes backwards) references that
+are compiled for the LOOP, BREAK, ENDCASE and RESULTIS commands. Each one has a
+seperate list. A minor problem with these commands is that they relate to 
+certain textual environments for their ultimate resolution, i.e. repetitive
+commands for LOOP and BREAK, SWITCHON commands for ENDCASE, and VALOF
+expressions for RESULTIS. each of these can textually nested, and although the
+commencement of SWITCHON and VALOF's is easily detected, repetitive commands
+are not so easy as one could suddenly discover a REPEAT after a command. All 
+these constructs are handled with the same mechanism. The mechanism is that
+when a LOOP type command is found, its address is added to the appropriate
+list with its statement number. The statement number is a global variable that
+is initially 0 and is incremented after the processing of every command. when
+the end of a syntactic entity such as a VALOF or a repetitive command is
+encountered all the items in the appropriate list are resolved as long as their
+statement number is greater than the statement number that was current at the
+start of the processing of that syntactic entity. For repetitive commands
+this is known as it is remembered prior to processing all commands whether or
+not they will turn out to be repetitive.
+
+Performance
+
+1)Compiler CPU time - the compiler requires roughly 2/3 of the CPU time that
+  the standard one in use on the IBM 370, but it is not unreasonable to
+  regard the rough indication as being unfair to my compiler, as it is run
+  with all the run-time stack checking and debugging facilities in
+  memory which presumably is not the case with the system compiler.
+2)System requirement - although it is difficult to find out what is
+  going on in the 370 system with regard IOSPACE. It seems the compiler can
+  compile itself in slightly more than half the region the 370 compiler
+  requires. In the Z80 implementation 40K is sufficient to recompile the
+  compiler, split as it is into two lumps. Little advantage would accrue from
+  dividing it into lots of little lumps as most of the workspace is used for
+  holding the many global identifiers used in the compiler.
+3)Compactness of code - The size of code produced is slightly less than half
+  the size of the equivalent 370 programs. This is disappointing, but various
+  ideas are listed below to reduce the size of the code further.
+  The size of the compiler is now about 7700 bytes.
+
+The Tag Data Structure
+
+The design of this was one of the last major developments of the compiler.
+It is designed to use as little space as possible. This is particularly
+important as it is found in practice that most of the workspace required by
+compiler is for this data structure. Some of the fields of the records that
+comprise the tag data structure are of one byte, and are accessed by the byte
+operator %. These fields are placed after the word fields for convenience.
+The actual positions of the fields are given in the appendix (INITDEFS) which
+defines values of manifests corresponding to the names I have given the fields.
+In what follows anything referred to as a pointer may have the value 0 in
+which case its value is 'null', and usually indicates the end of a list.
+
+The tag structures consists of three types of items.
+
+A) The hash table, which contains pointers to the first in a list of tag
+   definition records. Each member of a list has a tag whose hash value is
+   equal to the displacement from the base of the hash table of the cell
+   where the pointer to the head of that list is stored.
+E) Tag definition records, which have the following fields:
+
+1) Field 0 - a pointer to the next tag definition record in the list of those
+   which have the same hash value.
+2) Field IDLINK - a pointer to the previously defined identifier of those that
+   are currently active. This is used to keep a list of actively defined
+   identifiers, the head of which is IDLIST. Newly defined identifiers are put
+   on the list, and when it comes for identifiers to be undefined, they are
+   taken off the top of the list, until all of the required definition level
+   have been removed.
+3) Field PRDEC - this is a pointer to the first 'suppressed definition record'
+   of that identifier (see below).
+4) Field VALUE - the contents of this field depend on the type of identifier.
+   For a MANIFEST it will be the associated value, for a GLOBAL its global 
+   number, and for a dynamic variable, the displacement at run-time from the
+   base of the stack frame of the storage cell assigned to it.
+5) Field TYPE - a one byte field, which is the symbol number of the basic
+   symbol if it is one. 0 if currently unknown to the compiler, and DYNTYPE,
+   MANIFTYPE or GLOBTYPE if a currently defined identifier.
+6) Field TLENGTH - a one byte field which gives the number of bytes in the tag.
+7) Field BLOCKDEPTH - a one byte field which gives the definition level of the
+   identifier.
+8) Field CHARS - a variable length field containing the characters of the tag.
+
+C) The 'suppressed definition record' is used when an active identifier is
+   redeclared at an inner level. The contents of the tag definition record is
+   saved in one of these records and a pointer to it saved in the PRDEC field
+   of the tag record. When the identifier becomes undefined, the previous
+   contents are restored. The fields are:
+
+1) PPRDEC - a pointer to an even more unlocal definition.
+2) PIDLINK - the original IDLINK.
+3) PVALUE  - the original VALUE.
+4) PTYPE - the original TYPE.
+5) PELOCKDEPTH - the original BLOCKDEPTH
+
+Problems with the Compiler
+
+The only serious defect the compiler has at present is that of recovery
+from syntax errors. After the syntax error is detected, asuitable error
+message is output, but the recovery from the error is very primitive. The
+compiler is likely to get out of step in analysing the subsequent source code,
+usually leading to the output of several incorrect and misleading error
+messages. Clearly this problem is soluble, but the work has not been done.
+
+Use of Store by the Compiler
+
+The compiler, on initialising consults the globals STACKBASE and
+STACKEND and claims all but 1000 words for its working store area. The 1000
+words is sufficient for all but the most complex of programs. The object code
+is compiled into the bottom of the area, and the top is used to allocate
+space for the compiler lists and data structures. This area is allocated by
+routine NEW. If the area runs out, the compilation is immediately abandoned.
+Clearly different implementations may find it to be advantageous to come to
+some different conclusions about space management, particularly if the code is
+required to be executed immediately after compilation. The modular nature of
+the compiler makes such alterations a piece of cake.
+
+Restrictions to Language as Specified in 'Proposed Definition of Language BCPL
+
+1) Multiple assignments are not allowed.
+2) No STATICs of any kind are allowed.
+3) Truth value mode is not supported.
+4) Jumping out of a VALOF by any means other than RESULTIS is not allowed
+   (this includes LOOP, BREAK and ENDCASE).
+5) The bytes of a string are not padded with zeroes on the right.
+6) Automatic closing of untagged section brackets is not supported. Each
+   section bracket must match its counterpart exactly.
+
+Extensions
+
+1) Dynamic and vector declarations can be combined in the obvious way.
+2) The operator % is implemented.
+3) Extended assignments such as +:= are supported (but note restriction 1).
+
+Specification of the Theoretical Object Machine that Ycode runs on.
+    
+This section specifies the theoretical machine that the compiled BCPL
+programs (in Ycode) including the compiler itself runs on. In fact several
+machines are thus specified, parameterised by the number of bytes assigned to
+a word. Although some parts may seem to be airy-fairy, it is important that
+it may well be of advantage to the implementor of the machine to stretch the
+definition to its furthest limits, particularly in the aspect of assigning
+virtual addresses to the layout of real store that he is confronted with.
+Thus the reader of this section should make no preliminary assumptions, but
+that which is said should be adhered to rigourously in an implementation.
+
+Storage
+
+Storage is addressable in terms of words or bytes. Each word of accessable
+store must have a unique word address (BCPL address) and each byte must have a
+unique byte address. Consecutive words and consecutive bytes must have
+addresses that differ by one. There are three main storage areas accessable
+to the Ycode:
+
+1) The global vector which should be as many words long as the highest global
+   number explicitly declared in the source of a given program plus one. This
+   vector should be continous.
+2) Run-time stack. This should be an as large as possible continous piece of
+   store.
+3) The program area. This should be an area which contains the program the
+   machine is to execute and should not be in normal circumstances be modified.
+
+The delineation of these areas is of course invisible to the program.
+
+Registers
+
+The machine has 4 registers that are explicitly referenced by Ycodes and
+possibly some temporary ones (invisible to user).
+
+1) STKP which points to the top of the stack.
+2) DYNP which points to the base of the current stack frame.
+3) GLOBALL which points to the base of the global vector.
+4) X which is the current program counter which will usually be a byte pointer
+   into the program area.
+
+Each register is as large as is necessary. The registers DYMP and STKP
+will usually be word addresses pointing into the stack area, demarking in some
+arbitary sense which areas are currently in use, and a data structure of some
+significance to the machine, which can be regarded as a linked list of
+procedure activation records (stack frames). The result of the STKP or DYNP
+ceasing to point into this area is undefined (a condition commonly known as
+stack overflow).
+
+Format of Stack Frames
+
+Word 0 contains a pointer to the base of the previous stack frame. Word 1
+contains the return address for the procedure. Further words are allocated to
+the parameters and local variables of the procedure. The working stack is 
+placed at the end of this.
+
+Calling of Procedures
+
+When a procedure is to be called, if there are any actual parameters they
+will be on top of the working stack, and beneath that will be an unused word,
+and beneath that a word indicating the procedure to be called, if there are
+no parameters, the top word of the stack is the procedure indication. The
+calling Ycodes all specify the number of parameters, and so it is readily
+obvious where the procedure indication is held in the stack. The procedure
+indication is overwritten with the value of the old DYNP (the address of the
+base of the old stack frame) and this cell is the base of the new stack frame.
+The blank cell is used to store the return address and the parameters (if any)
+are then in their correct positions with respect to the new stack frame.
+
+Instruction Set
+
+The machine should interpret repetitively the Ycode whose byte address is
+held in X. Each Ycode will correspond to the different action to be taken by
+the machine. These actions may well involve the changing of values in the
+registers or in the store. The particulars of the operation of each Ycode
+is given in the appendix, where the actions are described in the BCPL program
+used for crudely implementing the system on the 370.
+    
+The standard arithmetic operations and such like operate on the working
+stacks, and operands are pushed onto it by the various push Ycodes. (For
+example, YPUSHONE, YPUSHTWO, YPUSHTHREE, YPLING, YDEREF, YADD will calculate
+1+213.) Some Ycodes are followed by arguments which the associated operation
+will usually inspect. In all cases each operation should leave X pointing to
+the next Ycode to be executed. There is one Ycode, 0 by convention, which
+causes an implementation dependent operation to occur - this will usually be
+to execute the bytes following it in the program as machine code.
+
+Initiation
+
+When the machine is initiated, it should scan the program modules and use
+the information in them to initialise the global vector to values as
+according to the information found at the end of each module (see below).
+The registers should be suitably initialised and the execution of Ycodes
+should be made to start with those at the beginning of the routine which is
+indicated by the contents of the word whose BCPL address is GLOBALL+1 (start)
+in such a way that when the routine performs a YRET, the system terminates as
+if a YFINISH has been encountered. (This is usually done by setting X initially
+to point to a piece of code YDPSHGLOB 1, YPCALLO, YFINISH which when executed
+will have the desired effect.)
+
+Module Structure
+
+The first two bytes of each module indicates the length of the module less
+2. A zero value indicates the end of the modules. The procedure that make up
+the module follow, each beginning with a two byte indication of the number of
+words to be allocated for each activation record of that procedure. Filler
+bytes may follow to ensure that the size of the module is a multiple of the
+number of bytes per word in that particular system. The last two bytes of the 
+module give the largest global number explicitly refered to in a GLOBAL
+declaration in that module. The previous two bytes indicate the number of
+globals declared internally within that module, and preceding that, that
+number of internal global definitions each consisting of four bytes. The first
+two indicate the global number, the second two indicate the relative address
+of the associated label within that module.
+
+The 370 Emulation of the Machine
+
+The 370 emulator is written BCPL and operates in a very contrived manner.
+Its main purpose is for debugging and checking the system as a whole. It also
+optionally provides a run-time trace of the execution of the Ycode program,
+and also a summary of how many times a particular piece of code was executed.
+(For example, it is a useful check to see if the Ycode version of the compiler
+produces the same Ycode  as the 370 version for the given source program).
+Various 'cheat' mechanisms are used to implement the standard routines by
+executing the 370 system versions undercover, and intercepting APTOVEC etc. for
+special treatment. The emulator is otherwise unremarkable. It does, however,
+provide in itself useful documentation as to how each Ycode should be
+interpreted by all implementations.
+
+The SYS-80F Implementation.
+
+Brief Description of the Mostek SYS-80F and the Operating System FLP-80DOS
+
+The SYS-80F is a Z80 based system designed for the development of hardware
+and software of Z80 based microcomputer systems. It has just less than 64K
+RAM though only about 48K of that is easily accessable to the user. Its
+peripherals include a dual floppy disk drive, a VDU and lineprinter. The FLP-
+80DOS operating system provides all the standard device drivers, and in
+particular a device independent interface to them known as IOCS. IOCS
+allocates its own I/O buffers working down into the user area from about 
+address C000. The user program does however have to provide his own control 
+blocks, other than one or two system ones which can be used. A system routine
+is provided which syntactically analyses strings representing filenames or
+devices and loads the details into the relevent fields of the control blocks.
+The operating system also provides various other useful standard routines. A
+program is loaded from disc and entered by typing in the name of the binary
+file after the monitor prompt. On entry to the program the rest of the command 
+line that caused the program to be loaded is available through the contents of
+the registers DE.
+
+The Emulation of the Theoretical Object Machine on the SYS-80F
+
+The BCPL word is 32 bits long, arranged in four consecutive bytes such 
+that the most significant byte has the lowest byte address. Integers are
+represented in two's complement. The word address is the byte address of the
+most significant byte divided by four. The operations of the Ycodes are
+performed by a software kernal written in machine code. The choice of 32 bit
+words was to enable the system to be easily extended to those where the natural
+64K address space of the Z80 is artificially extended by the use of software
+loaded external hardware registers. (program interpretation by a software 
+kernel is especially suited to such systems.)
+
+Module INTERP is by far the greatest part of the kernel, and contains the
+routines that perform the operations of each Ycode. The routine for each Ycode
+is located by indexing a special address table (BXTABLE) with the Ycode. This
+indexing is done by module BMAIN. The modules INTERP, EXTABLE and BMAIN which
+make up the software kernal are written so they are completely system 
+independent and should run on any Z80 system, although in practice it may well
+be that one would want to tailor it to take advantage of the properties of the
+system. Initialisation of the global vector is performed by a system dependent
+module DRIVE which is also responsable for setting up the RAM areas and setting
+the program in motion. It also performs end-of-run tidying up. The kernal and
+the monitor comprise about 2K bytes.
+
+Memory Map in the SYS-80F System
+
+0 - 8FF    : The software kernal and driver.
+900 - AFF  :Area for I/O control blocks.
+800 - EFF  :Basic scratchpad ram area.
+C00 ->     :The BCPL routines that make up the program, followed by the global
+            vector, followed by the run-time stack.
+ <- C000   :The operating system I/O buffers.
+C000-FFFF  :Reserved by the operating system.
+
+If the stack hits the operating system I/O buffers, the machine will crash.
+
+Z80 Register Allocation
+
+The Z80 affords more registers than many microprocessors, but the peculiar
+nature of the instruction set makes the way in which a program uses the 
+registers crucial to its efficiency. The state of the registers in between
+execution of Ycodes is:
+
+IY - Points to a piece of store were various system information is stored. For
+     example the four bytes at (IY+DYNP) is the current value of DYNP and so
+     on. Although fixed addresses could be allocated for this area, it greatly
+     helps portability etc. to assign to the variables displacements from some
+     base, which itself has to be held in a register.
+IX - Points into the program at the next Ycode to be executed.
+BCDE - contains the current value of the word at the top of the working stack,
+       B being the most significant byte.
+HL - The real address of the byte that is the one above the rest of the
+     working stack.
+AF - Don't care.
+
+The alternative register set is unused, on the assumption that the
+underlying system uses them for efficient interrupt handling or some such thing
+If they were available, however, they would be best used in module EMAIN to
+enable the selection of the appropriate X-routine to take place without
+having to preserve registers. This would save much execution time bearing in
+mind that the code in BMAIN is executed once per Ycode interpretation, which is
+of the order of thousands of times per second.
+
+The Implementation of the Standard Library Procedures
+
+At the moment only the compulsory standard library procedures have been
+implemented. The module RTS contains routines written in machine code that
+are callable from BCPL programs. These performs I/C byte by byte through IOCS,
+with IOCS being used to do all the donkey work. The arguments of FINDINPUT
+and FINDOUTPUT are strings in the form acceptable to the operating system but
+if no device is specified DK0: will be assumed. Usually this string will be a 
+filename refering to a file on DK0 : eg "FILENAME", or the line-printer which
+is "LP:", or a file on disc unit 1, eg "DK1:DISCFILE".
+    
+Various tricks are used to smoothe out the rather primitive nature of ICOS,
+and the control blocks used are extended by one byte to hold the last read
+character for use by UNRDCH. The request byte of the control block is borrowed
+to contain certain state information about a stream, 255 meaning end-of-file
+reached. 254 meaning UNRDCH has been called with this being the CIS, and 
+anything else meaning situation normal. Error conditions are reported by IOCS
+and are ignored, apart from FINDINPUT and FINDOUTPUT which both deliver 0 if an
+error occurs. As yet the delivery of error codes to RESULT2 is not implemented.
+Streams are delivered by FINDINPUT etc. are byte pointers to the base of the
+I/O control block for that stream.
+
+Various standard library routines are implemented in BCPL in the usual way
+(module BRTS), although it is worth noting that WRITEN and WRITED both take
+advantage of the way the / and REM operators work with negative numbers,
+something which the language specification leaves undefined to some extent.
+
+How to Run a BCPL Program on the System
+
+A BCPL program is constructed by compiling the source files into Mostek
+Hex object files and linking them together with the machine code modules
+(DRIVE, BMAIN, BXTABLE,INTERP) and the required BCPL library modules. The
+standard FLP-80DOS linker may be used for this. DRIVE must be loaded at the
+entry address (0). The first BCPL module must be started at a specific address
+known to DRIVE (currently C00) and all the BCPL modules must be consecutive.
+Module RTS must be the last module in a series of modules that make up a BCPL
+program as it contains information that tells the initial global linker that it
+is the last module. A program is compiled by entering BCPL <filename> where
+<filename> is the main source input file. The object file created will be named
+<filename>.CBJ. Strings used in GET directives must also specify filenames.
+
+Method of Bootstrapping the System onto the SYS-80F
+
+First the Ycode version of the compiler was made by a special version of
+the compiler which translated all characters in character constants and
+strings from EBCDIC to ASCII. This was then placed on the computer lab's data
+ring filing system via the RSX graphics system. From there the files were 
+placed on floppy disc by the drives attached to one of the LSI/4's connected
+to the ring as a processor server. The floppy discs were then taken to the
+SYS-80F system and the files removed and placed onto a standard FLP-80DOS disc.
+This needed to be done as the format used by the LSI/4's (TRIPOS floppy disc
+format) is totally unintelligible to the Mostek system. For example, even the 
+Mostek floppy disc handler firmware thinks that the last four bytes of a 
+sector are forward and backward pointers in two way list of sectors. A special
+program in Z80 assembler had to be written therefore to pick the files off the
+TRIPOS format disc sector by sector by direct call to the FDH firmware and
+write them to a FLP-80DOS format disc. This was an amusing exercise.
+
+When this had been done, the compiler was linked in the same manner as any
+other BCPL program and the compiler could then be run. No particular problems
+were encountered in this procedure. The first three versions of the compiler
+were bootstrapping via their object code as above. The fourth (and last)
+version was bootstrapped on by transfering the source and compiling it
+directly on the SYS-80F.
+ 
+Limitations of the SYS-80F System
+
+The system produced on the SYS-80F is really intended as a tool for
+enabling software development tools to be efficiently constructed. In this
+there is one serious snag. It is extremely difficult for the system to cope
+with binary RAM images, because of the peculiar way in which the operating
+system deals with them. This is a pity, as much of the development work done on
+the SYS-80F is with binary RAM images of one kind or another.
+
+Drawbacks of the System as a Whole
+
+1) The execution of Ycode programs is inherently slow because it has to be
+   interpreted.
+2) The allocation of space for stack frames is done according to the maximum
+   that could possibly be required by it, which is clearly inefficient for
+   many cases.
+3) The compiler does have the restrictions detailed above.
+4) The provision of useful diagnostic routines to be used in the event of a
+   program error or a specific program call is inadequately supported.
+5) The way in which LONGJUMP can be used is restricted.
+6) The current 4-byte Z80 interpreter is slow, firstly because it has not yet
+   been optimised and secondly simply because handling four bytes in the Z80
+   at a time is messy, A 2-byte interpreter would be more than twice as quick,
+   but would be limited to 128K machines.
+
+Possible Further Improvements to the System
+
+1) Arranging affairs so that a procedure call with parameters does not generate
+   a YFALSE to make space for the return address at run-time. This would
+   compress compiled code somewhat, but puts the onus on the interpreter to
+   shift the parameters up one word (or two if idea 2 is used).
+2) The generation of debugging information to enable MAPSTORE's and BACKTRACE's
+   to be useful by using an extra word in each stack frame to point to the
+   procedure which it is an activation record of and by compiling with each
+   procedure useful information about itself in the conventional way. This 
+   would of course degrade the systems performance all round but one could
+   offer it as an alternative to the standard system.
+3) Not to compile no-ops like YAT, YMONPLUS and YMONPLING except when used as
+   aligners.
+4) To compress the Ycode by squashing what is now 8 bytes into 7 by using the
+   currently unused most significant bit, of the Ycode. This would of course
+   present severe problems to the interpreter in grabbing the Ycodes,
+   particularly when providing pointers into itself (as in YSTRING and YTABLE).
+5) Making special one byte Ycodes for the pushing of dynamic variables that are
+   say the first 10 in the stack frame. This would compress the Ycode 
+   substantially.
+6) The provision of the routine DEBUG which temporarily halts the program and
+   allows the usual interactive inspection of store before continuing.
+
+A Proposal for the Replacement of Static Storage
+
+At the moment the use of static storage is considered bad BCPL programming,
+because space has to be reserved for it within the code of the program, thus
+causing complications with overlays etc. The facility of updating variables
+originally declared as labels and routines is particularly bad, and offers no
+more programming power than is otherwise available. It would seem therefore
+that if declarations of labels and routines could associate with the identifier
+in question a constant bit pattern representing the identifier in question,
+this would be no bad thing. The question is however, what should this bit
+pattern be? If it were an address relative to the base of the module, at
+run-time it would be impossible to find the real absolute address because one
+has no idea which module one is in. Clearly it is also impossible for the 
+compiler to output absolute address as it has no idea where the module is going
+to end up.
+
+Clearly the answer is for the relative addresses produced by the compiler
+to be made absolute when the program is initialised, in the same way as the
+global vector is initialised. Overlaid program segments would then be written
+to backing store for subsequent fetching. Each module would then contain
+information about where its relocatable quantities are in some standard format.
+Obviously this process could then be made even more complex to allow even more
+facilities, but I would consider it a bad thing to have a link-editor type of
+thing being run every time before a program is executed, particularly as I am
+no great fan of link editors. This solution would allow in many implementations
+for relocatable constant expressions to be used in places where ordinary
+constants are only now allowed, eg TABLE's.
+
+This solution is of course a partial red herring, in as much as that
+programs placed in ROM will have to be treated specially, and it assumes a
+certain control over the handling of overlaid programs.
+
+Acknowledgements
+
+Dr. Frank King for his supervision and suggestions.
+Dr. M. Richards for his words of guidance.
+Jon Gibbons for showing me some incantations.
+Mike Richardson for guiding me through TRIPOS disc formats.
+Ian Wilson and Gray Girling for miscellaneous assistance.
+Basil Smith and Newbury Laboratories (later of Grundy Business Systems Ltd)
+for use of their machine and cooperation.
+
+Guide to Appendices
+
+The listings in the appendices should be as follows:
+
+1) BASIC - The file that is read initially by the compiler containing the tags
+   that represent basic symbols. Each basic symbol corresponds to a tag value
+   equal to the line number of the line in which it appears.
+2) COM1 and COM2 - The two modules of the compiler.
+3) DECODE - A one-pass Ycode disassembler used for debugging.
+4) GLOBALS - The declaration of globals and manifests other than tags and 
+   Ycodes used by both compiler modules.
+5) INITDEFS - Declaration of the tag values and Ycode values.
+6) READPROG - A routine to convert Mostek Hex produced by the compiler into
+   a binary form.
+7) RTS - The 370 Ycode machine emulator.
+8) Assembler listings of DRIVE,BMAIN,BXTABLE and INTERP.
+9) TRIPOS - Which creates FLP-80DOS files TRIPOS ones on the SYS-80F.
+10) RTS - The standard library routines written in Z80 assembler.
+11) BRTS - The other standard library routines written in BCPL.
+12) Some sample output.
+
