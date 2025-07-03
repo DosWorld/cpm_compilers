@@ -1,0 +1,3155 @@
+	aseg
+	org	0100h
+;*******************************************************************
+;* Loader.                                                         *
+;* Inputs one or more code files, and builds COM file image in     *
+;* memory. If a second filename is provided, the image is saved    *
+;* otherwise it is executed. The runtime memory map is:            *
+;*                                                                 *
+;* run-time & library : Global vector : program : stack            *
+;*                                                                 *
+;*******************************************************************
+
+nolabs		equ	400	;labels allowed in loader
+nofiles		equ	20	;max number of input files to loader
+clifcb1		equ	05ch	;where ccp puts fcbs
+clifcb2		equ	06ch
+
+		jp	loader
+		ds	1	;keep the next bits aligned for PATCH
+
+noglobs:	dw	200			;size of global vector
+stacksize:	dw	2000			;size of stack
+curfcb:		ds	2			;workspace
+lastfcb:	ds	2
+firstfcb:	ds	2
+labeltab:	ds	2
+nloc:		ds	2
+realaddr:	ds	2
+imageglobs:	ds	2
+symtab:		ds	2
+sobuff:		ds	2
+soptr:		ds	1
+comfile:	ds	1
+symfile:	ds	1
+bpnt:		ds	1
+errflg:		ds	1
+glbovf:		ds	1
+labovf:		ds	1
+filecnt:	ds	1
+newflg:		ds	1
+	
+		page
+;*******************************************************************
+;*         Instruction table                                       *
+;* Four bytes for each code-stream small integer.	           *
+;* The first has a 0-3 length field in bits 0-1, and argument type *
+;* in bits 6-4, the argument types are:                            *
+;* 0 : no argument                                                 *
+;* 1 : word: copy 16b from stream after instruction                *
+;* 2 : byte: copy 8b from stream                                   *
+;* 3 : mlabel: 16b from stream is label no. put machine address    *
+;*             of label after instruction                          *
+;* 4 : blabel: as above, but BCPL address of label                 *
+;* 5 : mglobal : 16b from stream, is global number, replace with   *
+;*               machine address of global                         *
+;* 6 : bglobal : as above, but BCPL address                        *
+;* 7 : reljp   : same as mlabel, except that a relative jump can   *
+;*               be used here if in range.                         *
+;* Next three bytes are intruction, 0-3 of these are copied,       *
+;* depending on length field.                                      *
+;*                                                                 *
+;* THIS TABLE MUST BE KEPT CONSISTENT WITH COMPHDR                 *
+;*******************************************************************
+
+word	equ	010h		;Argument types for intruction table
+byte	equ	020h
+mlabel	equ	030h
+blabel	equ	040h
+mglobal	equ	050h
+bglobal	equ	060h
+reljp  	equ	070h
+
+endfile		equ	0
+labdef		equ	1	;Special icodes
+gorg		equ	2
+walign		equ	3
+needs		equ	4
+section		equ	5
+startsec	equ	6
+startfile	equ	7
+globsym		equ	8
+labsym		equ	9
+newlab		equ	10
+jumpinst	equ     72	;The number of JPLAB, so we can do
+				;branch shorting. Update if you change JPLAB
+
+itable:	db	0+word,0,0,0		;S.DW:"DW 0%X4H"
+	db	0+mlabel,0,0,0		;S.DWLAB:"DW L%D"
+	db	0+byte,0,0,0		;S.DB:"DB 0%X2H"
+	db	1+byte,006h,0,0		;S.LIMB:"LD B,0%X2H"
+	db	1+word,011h,0,0		;S.LIMDE:"LD DE,0%X4H"
+	db	1+word,001h,0,0		;S.LIMBC:"LD BC,0%X4H"
+	db	1+word,021h,0,0		;S.LIMHL:"LD HL,0%X4H"
+	db	1,0cfh,0,0		;S.RTAP:"RST 08H"
+	db	2+word,0fdh,021h,0	;S.LIMIY:"LD IY,0%X4H"
+	db	3,0c3h			;S.GOTO:"JP GOTO"
+	dw	goto
+	db	1,029h,0,0		;S.ADDHH:"ADD HL,HL"
+	db	1,019h,0,0		;S.PLUS:"ADD HL,DE"
+        db      1,06eh,0,0		;S.LDBYTE:"LD L,(HL)"
+        db      1+byte,026h,0,0		;S.LDHIM:"LD H,0%X2H"
+	db	1+byte,0cbh,0,0		;S.BIT:"BIT N,(HL)"
+	db	2,0ddh,02bh,0		;S.DECIX:"DEC IX"
+	db	1,0c9h,0,0		;S.RET:"RET"
+	db	3,0c3h			;S.FINISH:"JP FINISH"
+	dw	finish
+	db	2,0fdh,039h,0		;S.ADDIYSP:"ADD IY,SP"
+	db	1,0b7h,0,0		;S.ORA:"OR A"
+	db	1,0b4h,0,0		;S.ORH:"OR H"
+	db	2,0edh,052h,0		;S.MINUS:"SBC HL,DE"
+	db	1,07dh,0,0		;S.LDAL:"LD A,L"
+	db	1+reljp,0cah,0,0	;S.JPZ:"JP Z,L%D"
+	db	1+reljp,0c2h,0,0	;S.JPNZ:"JP NZ,L%D"
+	db	1+reljp,0dah,0,0	;S.JPC:"JP C,L%D"
+	db	1+reljp,0d2h,0,0	;S.JPNC:"JP NC,L%D"
+	db	1+mlabel,0e2h,0,0	;S.JPPO:"JP PO,L%D"
+	db	1+mlabel,0eah,0,0	;S.JPPE:"JP PE,L%D"
+	db	1,03dh,0,0		;S.DECA:"DEC A"
+	db	1+byte,0d6h,0,0		;S.SUBA:"SUB %X2H"
+	db	3,0cdh			;S.SWITCHON:"CALL SWITCH"
+	dw	switch
+	db	1,0e5h,0,0		;S.PUSHHL:"PUSH HL"
+	db	1,0e1h,0,0		;S.POPHL:"POP HL"
+	db	1,0d5h,0,0		;S.PUSHDE:"PUSH DE"
+	db	1,0d1h,0,0		;S.POPDE:"POP DE"
+	db	3,0cdh			;S.NEG:"CALL NEG"
+	dw	neg
+	db	3,0cdh			;S.ABS:"CALL ABS"
+	dw	abs
+	db	3,0cdh			;S.NOT:"CALL NOT"
+	dw	not
+	db	1,0dfh,0,0		;S.RV:"RST 18"
+	db	1+reljp,0c3h,0,0	;S.JPLAB:"JP L%D"
+	db	2+byte,0ddh,06eh,0	;S.LDLIX:"LD L,(IX+%D)"
+	db	2+byte,0ddh,075h,0	;S.STLIX:"LD (IX+%D),L"
+	db	2+byte,0ddh,066h,0	;S.LDHIX:"LD H,(IX+%D)"
+	db	2+byte,0ddh,074h,0	;S.STHIX:"LD (IX+%D),H"
+	db	2+byte,0ddh,05eh,0	;S.LDEIX:"LD E,(IX+%D)"
+	db	1,09h,0,0		;S.ADDHB:"ADD HL,BC"
+	db	2+byte,0ddh,056h,0	;S.LDDIX:"LD D,(IX+%D)"
+	db	3,0cdh			;S.OFRV:"CALL OFRV"
+	dw	ofrv
+	db	1+mglobal,02ah,0,0	;S.LDHLGLB:"LD HL,(GLOBS+<n>*2)"
+	db	1+mglobal,022h,0,0	;S.STHLGLB:"LD (GLOBS+<n>*2),HL"
+	db	2+mglobal,0edh,05bh,0	;S.LDDEGLB:"LD DE,(GLOBS+<n>*2)"
+	db	3,0cdh			;S.OFLV:"CALL OFLV"
+	dw	oflv
+	db	1+mlabel,02ah,0,0	;S.LDHLLAB:"LD HL,(L%D)"
+	db	1+mlabel,022h,0,0	;S.STHLLAB:"LD (L%D),HL"
+	db	2+mlabel,0edh,05bh,0	;S.LDDELAB:"LD DE,(L%D)"
+	db	3,0cdh			;S.VEC:"CALL VECTOR"
+	dw	vector
+	db	3,0cdh			;S.BYTEAP:"CALL GETBYTE"
+	dw	getbyte
+	db	3,0cdh			;S.DIV:"CALL DIV"
+	dw	div
+	db	3,0cdh			;S.REM:"CALL REM"
+	dw	rem
+	db	3,0cdh			;S.MULT:"CALL MULT"
+	dw	mult
+	db	3,0cdh			;S.LS:"CALL LESS"
+	dw	less
+	db	3,0cdh			;S.GR:"CALL GREATER"
+	dw	greater
+	db	3,0cdh			;S.LE:"CALL LESSEQ"
+	dw	lesseq
+	db	3,0cdh			;S.GE:"CALL GREATEQ"
+	dw	greateq
+	db	3,0cdh			;S.EQ:"CALL EQUALS"
+	dw	equals
+	db	3,0cdh			;S.NE:"CALL NEQ"
+	dw	neq
+	db	3,0cdh			;S.LSHIFT:"CALL LSHIFT"
+	dw	lshift
+	db	3,0cdh			;S.RSHIFT:"CALL RSHIFT"
+	dw	rshift
+	db	2+byte,0ddh,0b6h,0	;S.ORIX:"OR (IX+%N)"
+	db	3,0cdh			;S.LOGAND:"CALL LOGAND"
+	dw	logand
+	db	3,0cdh			;S.LOGOR:"CALL LOGOR"
+	dw	logor
+	db	3,0cdh			;S.EQV:"CALL EQV"
+	dw	eqv
+	db	3,0cdh			;S.NEQV:"CALL NEQV"
+	dw	neqv
+	db	3,0cdh			;S.LOCADDR:"CALL LOCADDR"
+	dw	locaddr
+	db	1+bglobal,021h,0,0	;S.GLBADDR:"LD HL,GLOBALS/2+<n>"
+	db	1+blabel,021h,0,0	;S.LABADDR:"LD HL,L%D/2"
+	db	1+blabel,011h,0,0	;S.LABDEADR:"LD DE,L%D/2"
+	db	1,0ebh,0,0		;S.EXCHG:"EX DE,HL"
+	db	1,073h,0,0		;S.STBYTE:"LD (HL),E"
+	db	1,0e7h,0,0		;S.STIND:"RST 20"
+	db	1,023h,0,0		;S.INCHL:"INC HL"
+	db	1,02bh,0,0		;S.DECHL:"DEC HL"
+	db	1,013h,0,0		;S.INCDE:"INC DE"
+	db	1,01bh,0,0		;S.DECDE:"DEC DE"
+	db	2,0edh,062h,0		;S.SUBHH:"SBC HL,HL"
+	db	1+mlabel,0fah,0,0	;S.JPM:"JP M,L%D"
+	db	1+mlabel,0f2h,0,0	;S.JPP:"JP P,L%D"
+	db	2,0fdh,0f9h,0		;S.LDSPIY:"LD SP,IY"
+	db	2,020h,003h,0		;S.SKIP:"JR NZ,$+5"
+	db	2+byte,0ddh,034h,0	;S.INCLOC:"INC (IX+%N)"
+	db	1,0d7h,0,0		;S.SRTAP:"RST 10"
+        db	3,0cdh			;S.TWODIV:"CALL TWODIV"
+	dw	twodiv
+	db	2,0ddh,09h,0		;S.ADDIXBC:"ADD IX,BC"
+        db	1+mglobal,03ah,0,0	;S.LDAGLB:"LD A,(GLOB N)"
+        db 	1+mlabel,03ah,0,0	;S.LDALAB:"LD A,(LAB N)"
+        db	1+byte,03eh,0,0		;S.LIMA:"LD A,0%X2H"
+        db	2+byte,0ddh,07eh,0	;S.LDAIX:"LD A,(IX+%N)"
+        db	1,077h,0,0		;S.STBYTEA:"LD (HL),A"
+	db	1+byte,036h,0,0		;S.STBYTIM:"LD (HL),0%X2H"
+	db	2+word,0ddh,036h,0	;S.LDIXIM:"LD (IX+%N),0%X2H"
+	db	2,0edh,042h,0		;S.SUBHB:"SBC HL,BC"
+	db	2,028h,01h,0		;S.SKIPZ:"JR Z,$+3"
+	db	2,0ddh,023h,0		;S.INCIX:"INC IX"
+
+	page	
+;********************************
+;* global vector.               *
+;********************************
+
+; used by the loader to initialise the global vector in the
+; program image it is building
+
+globtab:
+	dw	globund		;START, filled in later
+	dw	wrch		;global 1
+	dw	rdch		;   "   2
+	dw	endtoinput	;   "   3
+	dw	binaryoutput	;   "	4
+	dw	binaryinput	;   "	5
+	dw	selectinput	;   "	6
+	dw	selectoutput	;   "	7
+	dw	endread		;   "   8
+	dw	endwrite	;   "	9
+	dw	findinput	;   "	10
+	dw	findoutput	;   "	11
+	dw	longjump	;   "   12
+	dw	unrdch		;   "	13
+	dw	input		;   "	14
+	dw	output		;   "   15
+	dw	level1		;   "   16
+	dw	level2		;   "   17
+	dw	rewind		;   "   18
+	dw	stackavail	;   "   19
+	dw	callbdos	;   "   20
+	dw	parse		;   "   21
+	dw	muldiv		;   "   22
+	dw	in		;   "   23
+	dw	out		;   "   24
+	dw	createco	;   "   25
+	dw	currentco	;   "   26
+	dw	callco		;   "   27
+	dw	cowait          ;   "   28
+        dw      resumeco        ;   "   29
+	dw	colongjump	;   "   30
+	dw	deleteco	;   "   31
+	dw	getvec		;   "   32
+	dw	freevec		;   "   33
+	dw	maxvec		;   "   34
+	dw	intkey		;   "   35
+	dw	memcpy		;   "   36
+	dw	removeinput	;   "   37
+	dw	removeoutput	;   "   38
+	dw	0		; marks the end
+
+	page
+
+;*************************************************
+;* Run time system routines:                     *
+;* Names and addresses of the runtime system     *
+;* components, so that we can put them in the    *
+;* symbol file. Note that the names must not be  *
+;* legal BCPL names, to avoid clashes. We use    *
+;* either a trailing period, or [] to do this.   *
+;*************************************************
+rtnames:dw	locaddr
+	db	'LOCADDR.',0
+	dw	vector
+	db	'VECTOR.',0
+	dw	getbyte
+	db	'GETBYTE.',0
+	dw	switch
+	db	'SWITCH.',0
+	dw	goto
+	db	'GOTO.',0
+	dw	oflv
+	db	'OFLV.',0
+	dw	ofrv
+	db	'OFRV.',0
+	dw	rshift
+	db	'[>>]',0
+	dw	lshift
+	db	'[<<]',0
+	dw	logand
+	db	'[&]',0
+	dw	logor
+	db	'[|]',0
+	dw	neqv
+	db	'NEQV.',0
+	dw	eqv
+	db	'EQV.',0
+	dw	not
+	db	'NOT.',0
+	dw	abs
+	db	'ABS.',0
+	dw	neg
+	db	'NEG.',0
+	dw	lesseq
+	db	'[<=]',0
+	dw	less
+	db	'[<]',0
+	dw	greateq
+	db	'[>=]',0
+	dw	greater
+	db	'[>]',0
+	dw	equals
+	db	'[=]',0
+	dw	neq
+	db	'[~=]',0
+	dw	mult
+	db	'[*]',0
+	dw	div
+	db	'[/]',0
+	dw	rem
+	db	'REM.',0
+	dw	twodiv
+	db	'TWODIV.',0
+	dw	finish
+	db	'FINISH.',0
+	dw	0			;mark the end
+
+	page
+;**************************************************
+;* Loader.                                        *
+;**************************************************
+
+loader:	ld	hl,(6)			;get top of memory
+	dec	hl
+	ld	sp,hl			;put stack at top of memory
+	ld	de,signon		;say hello
+	ld	c,bprtstrng
+	call	5
+	ld	de,ssstring		;say how big the stack will be
+	ld	c,bprtstrng
+	call	5
+	ld	bc,(stacksize)
+	call	decout
+	ld	de,gsstring		;and the global vector
+	ld	c,bprtstrng
+	call	5
+	ld	bc,(noglobs)
+	call	decout
+	ld	de,estring
+	ld	c,bprtstrng
+	call	5
+	ld	hl,-(nofiles*33+200)	;make room for stack and fcbs
+	add	hl,sp
+	ld	(curfcb),hl		;first fcb is there
+	ld	(firstfcb),hl
+	push	hl
+	ld	de,33			;point to last fcb
+	add	hl,de
+	ld	(lastfcb),hl
+	pop	hl
+	ld	de,(noglobs)		;save one byte for each global
+	or	a			;to stamp on duplicate symbols
+	sbc	hl,de
+	ld	(symtab),hl
+	push	hl
+zerosyms:
+	ld	(hl),0			;set them to zero
+	dec	de
+	inc	hl
+	ld	a,e
+	or	d
+	jr	nz,zerosyms
+	pop	hl
+	ld	de,-128			;save 128 bytes as output buffer
+	add	hl,de			;for symbol file
+	ld	(sobuff),hl
+	ld	de,-nolabs*4		;make room for the label table
+	add	hl,de
+	ld	(labeltab),hl
+	ld	a,(clifcb1+1)		;do we have 1 source file?
+	cp	' '
+	jr	nz,sffound
+	ld	a,(clifcb1+9)
+	cp	' '
+	jr	nz,sffound
+	ld	de,clifcb1		;copy in default BCPL.OUT
+	ld	hl,defname
+	ld	bc,14
+	ldir
+sffound:
+	ld	a,0			;clear the bits in the two fcbs
+	ld	(clifcb1+12),a
+	ld	(clifcb1+14),a
+	ld	(clifcb1+32),a
+	ld	de,(firstfcb)		;fcb1 is first input fcb
+	ld	hl,clifcb1
+	ld	bc,33
+	ldir				;so copy it there
+	ld	hl,clifcb2		;move second fcb to 1st pos
+	ld	de,clifcb1		;for output
+	ld	bc,12
+	ldir
+	ld	(clifcb1+12),a		;and zero it's bits
+	ld	(clifcb1+14),a
+	ld	(clifcb1+32),a
+	ld	a,0
+	ld	(comfile),a		;assume no .COM output
+	ld	(symfile),a		;and no .SYM
+	ld	a,(clifcb1+1)		;is there a second filename?
+	cp	' '
+	jr	z,nosym			;if not it will be loadgo
+	ld	a,1			;there will be a codefile
+	ld	(comfile),a
+	ld	a,(clifcb1+9)		;is there an extension?
+	cp	' '
+	jr	nz,nosym		;if so just use it
+	ld	a,1
+	ld	(symfile),a		;if not invent .COM and .SYM 
+	ld	a,'S'
+	ld	(clifcb1+9),a
+	ld	a,'Y'			;put the .SYM in
+	ld	(clifcb1+10),a
+	ld	a,'M'
+	ld	(clifcb1+11),a
+	ld	de,clifcb1		;now open the sym file
+	ld	c,bdel
+	call	5
+	ld	de,clifcb1
+	ld	c,bmake
+	call	5
+	inc	a
+	jp	z,dirfull
+nosym:	ld	a,0			;clear the buffer pointer
+	ld	(soptr),a
+	ld	(errflg),a		;no errors yet
+	ld	de,rtnames		;output the symbols for the
+bi:	ld	a,(de)			;run-time system
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	inc	de
+	ld	h,a
+	or	l			;zero marks the end
+	jp	z,bifin
+	ld	b,4			;print address
+bi1:	ld	a,3			;this code stolen from other
+	add	hl,hl			;symbol stuff
+	rla
+	add	hl,hl
+	rla
+	add	hl,hl
+	rla
+	add	hl,hl
+	rla
+	cp	'9'+1
+	jr	c,bi2
+	add	a,7
+bi2:	call	symout
+	djnz	bi1
+	ld	a,' '
+	call 	symout
+bi4:	ld	a,(de)
+	inc	de
+	or	a
+	jr	z,bi3
+	call	symout
+	jr	bi4
+bi3:	ld	a,CR
+	call	symout
+	ld	a,LF
+	call	symout
+	jp	bi			;next one
+
+bifin:	ld	de,0fffeh and progend+1	;global vector must be aligned
+	ld	(offsetglob),de		;store in the program image
+	ld	hl,offset
+	add	hl,de			;add in the offset
+	ld	(nloc),hl		;set up nloc
+	ld	(imageglobs),hl		;save image address
+	ld	a,1
+	ld	(filecnt),a		;we have one file so far
+	ld	bc,(noglobs)
+	ld	hl,globtab
+ginit1:	ld	e,(hl)
+	inc	hl			;get a global from table
+	ld	a,(hl)			;until zero
+	or	e
+	jr	z,glbinit		;fill the rest with undefined
+	ld	a,e
+	call	outbyte
+	ld	a,(hl)
+	call	outbyte
+	dec	bc			;include these in the total
+	inc	hl
+	jr	ginit1
+glbinit:ld	a,low globund		;now fill in the rest with
+	call	outbyte			;the address of an error
+	ld	a,high globund		;routine, in case they 
+	call	outbyte			;get called accidentaly
+	dec	bc
+	ld	a,b
+	or	c
+	jr	nz,glbinit
+filelp:	ld	de,(curfcb)		;open the file
+	ld	c,bopen
+	call	5
+	cp	0ffh			;found?
+	jp	nz,openok
+	ld	de,fnfmess		;send an error message
+perr:	ld	c,bprtstrng
+	call	5
+	ld	hl,(curfcb)
+	inc	hl			;print the file name
+	ld	b,8
+fnf:	ld	a,(hl)
+	inc	hl
+	call	mout
+	djnz	fnf
+	ld	a,'.'
+	call	mout
+	ld	b,3
+fnf1:	ld	a,(hl)
+	inc	hl
+	call	mout
+	djnz	fnf1
+	call	sp4e			;CRLF
+	ld	a,1			;remember we had an error
+	ld	(errflg),a
+	jp	nextfile		;get the next one
+defname:
+	db	0,'BCPL    OUT'		;default source file
+fnfmess:
+	db	'File not found: $'
+signon:	db	CR,LF,'Z80 BCPL Loader starting....',CR,LF,LF,'$'
+ssstring:
+	db	'Stack size will be $'
+gsstring:
+	db	' words',CR,LF,'Global vector will be $'
+estring:	
+	db	' words',CR,LF,CR,LF,'$'
+mout:	push	hl
+	push	bc
+	cp	' '			;don't print spaces
+	jr	z,mout1
+	ld	e,a
+	ld	c,bconout
+	call	5
+mout1:	pop	bc
+	pop	hl
+	ret
+openok:	ld	a,128			;clear buffer pointer
+	ld	(bpnt),a
+	call	nxtbyte			;make sure it's an object file
+	cp	startfile
+	jr	z,openok1		;branch if so
+	ld	de,fmtmess		;or do error
+	jp	perr
+fmtmess:
+	db	'Format error: $'
+openok1:
+	call	rdcode			;read the file
+nextfile:
+	ld	hl,(curfcb)
+	ld	de,33			;do next one
+	add	hl,de
+	ld	(curfcb),hl		;done all files?
+	ld	de,(lastfcb)
+	or	a
+	sbc	hl,de
+	jr	z,savecode		;if so save it
+	jp	filelp
+savecode:
+	call	newline
+	ld	a,(errflg)		;quit if there were errors
+	or	a
+	jr	z,sc1
+	ld	a,(symfile)		;on error, delete our op files
+	or	a
+	jr	z,abrt1
+	ld	de,clifcb1
+	ld	c,bdel
+	call	5			;delete the .SYM file
+	ld	a,'C'			;now make file name xx.COM
+	ld	(clifcb1+9),a		;for the next stage
+	ld	a,'O'
+	ld	(clifcb1+10),a
+	ld	a,'M'
+	ld	(clifcb1+11),a
+abrt1:	ld	a,(comfile)
+	or	a
+	jr	z,abrt2
+	ld	de,clifcb1		;if we were going to make
+	ld	c,bdel			;a .COM file, delete a possible
+	call	5			;pre-existing one.
+abrt2:	call	nsaveprn		;op a message
+	call	newline
+	jp	0			;and abort
+newline:ld	e,CR
+	ld	c,bconout
+	call	5
+	ld	e,LF
+	ld	c,bconout
+	call	5
+	ret
+sc1:	ld	hl,(nloc)		;get real addr of program end
+	ld	de,offset
+	or	a
+	sbc	hl,de
+	inc	hl			;word align
+	ld	a,l
+	and	0feh
+	ld	l,a
+	ld	(offsetstack),hl	;and put it in the image
+	ld	de,(stacksize)		;now find real addr of end
+	ex	de,hl
+	add	hl,hl			;stacksize is in words
+	add	hl,de
+	ld	(offsetstend),hl	;out in the image
+	ld	a,(symfile)		;are we doing a symbol file?
+	or	a
+	jr	z,sc2			;branch if not
+	ld	a,EOF			;put end of file on symbols
+	call	symout
+	ld	a,(soptr)		;is there buffered data?
+	or	a
+	jr	z,endsym1		;branch if not
+	ld	de,(sobuff)		;else write last sector
+	ld	c,bsetdma
+	call	5
+	ld	de,clifcb1
+	ld	c,bwrtseq
+	call	5
+	or	a
+	jp	nz,dfull
+endsym1:ld	de,clifcb1		;close up the file
+	ld	c,bclose
+	call	5
+	ld	a,'C'			;now make file name xx.COM
+	ld	(clifcb1+9),a		;for the next stage
+	ld	a,'O'
+	ld	(clifcb1+10),a
+	ld	a,'M'
+	ld	(clifcb1+11),a
+	ld	a,0			;and reset odds n sods
+	ld	(clifcb1+12),a
+	ld	(clifcb1+14),a
+	ld	(clifcb1+32),a
+sc2:	ld	a,(comfile)		;is it loadgo?
+	or	a
+	jr	nz,savecode1		;branch to save file
+	ld	a,' '			;ensure the image finds
+	ld	(clifcb1+1),a		;no file names
+	ld	(clifcb1+9),a
+	ld	(clifcb2+1),a
+	ld	(clifcb2+9),a
+	ld	a,0edh			;put a ldir intruction at 0feh
+	ld	(0feh),a
+	ld	a,0b0h
+	ld	(0ffh),a
+	ld	de,0100h		;move to 100 hex
+	ld	hl,(nloc)
+	ld	bc,startimage		;get length
+	or	a
+	sbc	hl,bc
+	push	hl
+	pop	bc
+	ld	hl,startimage		;and source
+	jp	0feh			;and do move, and jump in
+savecode1:
+	ld	de,clifcb1		;second filename is here
+	ld	c,bdel
+	call	5
+	ld	de,clifcb1
+	ld	c,bmake
+	call	5
+	inc	a
+	jp	z,dirfull
+	ld	de,startimage		;start of image
+saloop:	push 	de
+	ld	c,bsetdma
+	call	5
+	ld	de,clifcb1
+	ld	c,bwrtseq
+	call	5
+	or	a
+	jr	nz,dfull		;disk full
+	pop	de
+	ld	hl,080h
+	add	hl,de
+	push	hl
+	pop	de
+	ld	bc,(nloc)
+	or	a
+	sbc	hl,bc
+	jr	c,saloop
+	ld	de,clifcb1
+	ld	c,bclose
+	call	5
+	jp	0			;finish
+dfull:	call	nsaveprn
+	ld	de,dfullmess
+dfull1:	ld	c,bprtstrng
+	call	5
+	jp	0			;finish
+dirfull:call	nsaveprn
+	ld	de,dirfullmess
+	jp	dfull1
+nsaveprn:
+	ld	de,nsave
+	ld	c,bprtstrng
+	call	5
+	ret
+nsave:
+	db	'Output not saved$'
+dfullmess:
+	db	': disk full',CR,LF,'$'
+dirfullmess:
+	db	': directory full',CR,LF,'$'
+
+rdcode:	call	nxtbyte
+	cp	endfile
+	ret	z
+	call	oneinst
+	jr	rdcode
+
+oneinst:ld	l,a			;save
+	and	0e0h			;icode=>32 ->instruction
+	ld	a,l
+	jp	z,special		;else special
+	sub	32
+	ld	l,a			;put icode in l
+	ld	h,0
+	add	hl,hl			;multiply by four to index table
+	add	hl,hl
+	ld	bc,itable		;add base address
+	add	hl,bc
+	ld	a,(hl)			;get flags byte
+	ld	c,a			;save it
+	and	003h			;get length
+	jr	z,noinst		;skip if length zero
+	ld	b,a
+loadlp:	inc	hl			;point to next byte
+	ld	a,(hl)
+	call	outbyte			;output the byte
+	djnz	loadlp			;loop round
+noinst:	ld	a,c			;flags back
+	and	070h			;get arg flag
+	ret	z			;if zero, no argument
+	cp	word			;word arg.
+	jr	nz,inst1
+	call	nxtbyte			;copy the word arg
+	call	outbyte
+instbt:	call	nxtbyte
+	call	outbyte
+	ret				;and return
+inst1:	cp	byte
+	jr	z,instbt		;copy 1 byte
+	cp	mlabel			;machine address of label
+	jp	nz,inst2
+	call	getlnp			;get the arg
+	ld	a,(hl)			;look at baddr chain
+	inc	hl
+	cp	0ffh
+	jr	nz,mforwrd		;don't know the address yet
+	ld	a,(hl)
+	cp	0ffh
+	jr	nz,mforwrd
+outmad:	inc	hl			;baddr if FFFF, maddr has addr
+	ld	a,(hl)			;load it, and output
+	call	outbyte
+	inc	hl
+	ld	a,(hl)
+	call	outbyte			;sent address, all done
+	ret
+mforwrd:ld	de,(nloc)
+	call	outmad			;put link address there
+	ld	(hl),d			;de has address where we're 
+	dec	hl			;putting it
+	ld	(hl),e
+	ret
+inst2: 	cp	reljp			;machine label, instruction with
+	jp	nz,inst2a		;relative version.
+	call	getlnp			;get the label number
+	ld	a,(hl)
+	inc	hl
+	cp	0ffh			;if forward ref, must use absolute
+	jr	nz,mforwrd
+	ld	a,(hl)
+	cp	0ffh
+	jr	nz,mforwrd
+	inc	hl			;we know the address
+	ld	e,(hl)			;into DE
+	inc	hl
+	ld	d,(hl)
+relarg:	ld	hl,(nloc)		;find the span
+	ld	bc,offset
+	or 	a
+	sbc	hl,bc			;real value of pc
+	sbc	hl,de			;span in HL
+	ld	a,h
+	or	a	
+	jp	nz,notrel		;not in range
+	bit	7,l
+	jp	nz,notrel
+	ld	de,(nloc)		;can use relative, modify
+	dec	de			;the instruction (hack, hack)
+	ld	a,(de)
+	cp	0c3h			;jp
+	jr	nz,condrel		;else must be conditional
+	ld	a,0fah			;jr XOR 0e2h
+condrel:xor	0e2h			;this goes jp cc, -> jr cc,
+	ld	(de),a
+	ld	a,l			;get the span
+	cpl				;negative
+	call	outbyte
+	ret
+notrel:	ld	a,e
+	call	outbyte
+	ld	a,d
+	call	outbyte
+	ret
+getlnp:
+;* likegetn, but follow proxys
+	call	getln
+	ret	c			;if error
+getlnp1:ld	a,(hl)
+	cp	01
+	jr	nz,gp1			;return if this label not proxy
+	inc	hl
+	ld	a,(hl)
+	cp	00
+	jr	z,gotprox
+	dec	hl
+gp1:	or	a			;no error
+	ret
+gotprox:inc	hl			;follow proxy pointer and retry
+	ld	a,(hl)
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	jr	getlnp1
+getln:	call	nxtbyte			;get address of label record
+	ld	l,a			;with checking
+	call	nxtbyte
+	ld	h,a
+	ld	bc,nolabs		;see if it's too big
+	or	a
+	sbc	hl,bc
+	jr	nc,getln1		;branch if so
+	add	hl,bc			;restore original
+	add	hl,hl			;multiply by four
+	add	hl,hl
+	ld	bc,(labeltab)		;add in base address
+	add	hl,bc
+	or	a			;clear carry if ok
+	ret
+getln1:	ld	hl,(labeltab)		;substitute 0
+	ld	a,(labovf)
+	or	a			;do nothing else second time
+	scf				;error
+	ret	nz
+	ld	a,1			;set flags
+	ld	(labovf),a
+	ld	(errflg),a
+	ld	de,laberr		;print error message
+	ld	c,bprtstrng
+	call	5 
+	ld	hl,(labeltab)
+	scf
+	ret
+laberr:
+	db	'Too many internal labels; '
+	db	'use smaller sections.',0dh,0ah,'$'
+inst2a:	cp	blabel			;bcpl address of label
+	jr	nz,inst3
+	call	getlnp			;get label no.
+	ld	a,(hl)			;look at baddr chain
+	inc	hl
+	cp	0ffh			;if it is FFFF we know the addr
+	jr	nz,bforwrd		;if not, forward reference
+	ld	a,(hl)
+	cp	0ffh
+	jr	nz,bforwrd
+	inc	hl			;get the mach. addr from maddr
+	ld	c,(hl)
+	inc	hl
+	ld	b,(hl)			;into bc
+	srl	b			;divide by two for bcpl addr
+	rr	c
+	ld	a,c			;and output it
+	call	outbyte
+	ld	a,b
+	call	outbyte
+	ret
+bforwrd:dec 	hl			;put it on the ptr chain
+	ld	bc,(nloc)
+	ld	a,(hl)
+	call	outbyte
+	inc	hl
+	ld	a,(hl)
+	call 	outbyte
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ret
+inst3:	cp	mglobal			;machine address of global
+	jr	nz,inst4
+	call	nxtbyte
+	ld	l,a			;get arg
+	call	nxtbyte
+	ld	h,a
+	call	chkglb			;check it
+	add	hl,hl			;multiply by 2 for machine addr
+	ld	bc,(offsetglob)		;add in the base
+	add	hl,bc
+	ld	a,l
+	call 	outbyte			;output it
+	ld	a,h
+	call	outbyte
+	ret
+inst4:	cp	bglobal			;bcpl address of global
+	ret 	nz
+	call	nxtbyte
+	ld	l,a
+	call	nxtbyte
+	ld	h,a
+	call	chkglb
+	ld	bc,(offsetglob)
+	srl	b			;get BCPL address
+	rr	c
+	add	hl,bc
+	ld	a,l
+	call	outbyte
+	ld	a,h
+	call	outbyte
+	ret
+
+chkglb:	push	hl			;save the no
+	ld	de,(noglobs)		;return c=1 if error
+	or	a
+	inc	hl
+	ex	de,hl
+	sbc	hl,de
+	pop	hl
+	ret	nc			;return no error
+	ld	hl,0			;use zero
+	ld	a,(glbovf)		;have we already hit an error?
+	or	a
+	ccf				;make c=1 for error
+	ret	nz			;return if so
+	ld	a,1			;else set global overflow flag
+	ld	(glbovf),a
+	ld	(errflg),a		;and general error
+	ld	de,glberr		;print error
+	ld	c,bprtstrng
+	call	5
+	ld	hl,0			;use zero
+	or	a			;c=1
+	ccf
+	ret
+glberr:	db	'Global vector too small.',0dh,0ah,'$'
+
+followlabel:
+;Two consecutive labels have been found, make the first one act as the
+;second. We do this in the hope that the second will have a branch following
+;it, which can be shorted, or possibly elided.
+	ex	de,hl			;first label in de	
+	call	getln			;get the number of the second label
+	ret	c			;all bets of if it's bad
+	ex	de,hl			
+	ld	(hl),01			;0001 means this is a proxy
+	inc	hl			;note we assume the BChain is empty
+        ld	(hl),00
+	inc	hl
+	ld	c,(hl)			;get a possible chain to move to the 
+        ld	(hl),e			
+	inc	hl			;target
+	ld	b,(hl)
+	ld	(hl),d			;and put in the proxy label
+	ld	h,d
+	ld	l,e
+	inc	hl	
+	inc	hl			;chase down the targets MChain
+fl2:	ld	a,(hl)
+	inc	hl
+	or	(hl)			;marked by zero
+	jr	z,fl1
+	dec	hl
+	ld	a,(hl)			;not found yet, onwards
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	jr	fl2
+fl1:	ld	(hl),b
+	dec	hl			;got the end, put proxys chain on
+	ld	(hl),c
+	ex	de,hl			;target label in HL
+	jp	dolab1			;it may now be a proxy
+
+followjump:
+;A jump following a label, make the source label a proxy for the 
+;destination, and elide the jump if there if no other route to it
+	ex	de,hl
+	call	getln
+	ret	c
+fj2:	or	a
+	sbc	hl,de			;is dest a proxy of source?
+	jr	z,foundloop		;if so found and infinite loop
+	add	hl,de			;restore HL
+	ld	a,(hl)			;what is the status of dest.
+	cp	01
+	inc	hl
+	jr	nz,fj1
+	ld	a,(hl)
+	cp	0			;already a proxy
+	jr	nz,fj1
+	inc	hl
+	ld	a,(hl)			;try again if so
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	jr	fj2	
+
+foundloop:
+; Ok we have that the dest of our jump is a proxy of it's source.
+; We could complain, but we do our best to deliver what is asked for.
+; Assemble a jump to self, and instantiate the source label to break
+; the loop
+	ld	a,018h			;JR instruction
+	call	outbyte
+	ld	a,-2			;self
+	call	outbyte
+	ex	de,hl			;put Lx in HL
+	call	nxtbyte			;for resolve
+	jp	resolve
+
+fj1:	dec	hl
+	ld	a,(hl)			;already defined?
+	cp	0ffh
+	inc	hl
+	jp	nz,fj3
+	ld	a,(hl)
+	cp	0ffh
+	jp	nz,fj3
+;OK, we have Lx: JMP Ly and we know where Ly is.
+;Give Lx the value of Ly, and output the jump if control
+;can fall through to here
+	push	de
+	inc	hl
+	ld	e,(hl)			;get Ly in DE for relarg
+	inc	hl
+	ld	d,(hl) 	
+	ld	a,(newflg)
+	or	a			;can we elide the jump?
+	push	de
+	jr	nz,fj4	
+	ld	a,0c3h			;Z80 JP instruction
+	call	outbyte
+	call	relarg			;and argument
+fj4:    pop	bc			;address of Ly
+	pop	hl			;now have Lx in HL
+	push	bc			;and address of Ly in BC
+	srl	b			;BCPL address
+	rr	c
+	push	hl
+	call	labloop			;fill it in
+	pop	hl
+	ld	(hl),0ffh		;mark as known
+	inc	hl
+	ld	(hl),0ffh
+	inc	hl
+	pop	bc			;get machine address
+	jp	labloop			;and do that
+
+fj3:			
+;Here, we have Lx JMP Ly, but we don't yet know the value of Ly.
+;Set up Lx as a proxy of Ly, and emit an incomplete JP unless
+;it can be elided.
+
+	dec	hl
+	ex	de,hl			
+	ld	(hl),01			;0001 means this is a proxy
+	inc	hl			;note we assume the BChain is empty
+        ld	(hl),00
+	inc	hl
+	ld	c,(hl)			;get a possible chain to move to the 
+        ld	(hl),e			
+	inc	hl			;target
+	ld	b,(hl)
+	ld	(hl),d			;and put in the proxy label
+	ld	h,d
+	ld	l,e
+	inc	hl	
+	inc	hl			;chase down the targets MChain
+fj5:	ld	a,(hl)
+	inc	hl
+	or	(hl)			;marked by zero
+	jr	z,fj6
+	dec	hl
+	ld	a,(hl)			;not found yet, onwards
+	inc	hl
+	ld	h,(hl)
+	ld	l,a
+	jr	fj5
+fj6:	ld	(hl),b
+	dec	hl			;got the end, put proxys chain on
+	ld	(hl),c
+	ld	a,(newflg)		;can we elide the jump
+	or	a
+	ret	nz
+	ex	de,hl			;target label in HL
+	inc	hl			;for mforwrd
+	ld	a,0c3h			;Z80 JP inst
+	call	outbyte
+	jp	mforwrd			;this does the unknown dest	
+
+special:				;special pseudo-ops come here
+	cp	walign
+	jr	nz,sp1
+	ld	hl,(nloc)		;word align code stream
+	ld	de,offset
+	or	a
+	sbc	hl,de
+	rr	l
+	ret	nc			;ok if nloc-offset is even
+	ld	a,0			;else pad with zero
+	call	outbyte
+	ret
+sp1:	cp	labdef			;define label as this location
+	ld	l,0			;flag
+	jr	z,dolab
+	cp	newlab
+	jr	nz,sp2
+	ld	l,1			;flag
+dolab:	ld	a,l
+	ld	(newflg),a		;one if a newlab, zero otherwise
+	ld	hl,(nloc)
+	ld	de,offset		;work out current real address
+	or	a
+	sbc	hl,de
+	ld	(realaddr),hl
+	call	getln			;get labelno, and form index
+	ret	c			;quit if label out of range
+dolab1:	call	nxtbyte			;get the following instruction
+	cp 	labdef			;if it's labdef or jump, we wish
+	jp	z,followlabel		;to play around
+	cp	jumpinst
+	jp	z,followjump
+resolve:push	af			;else save the instruction we stole
+	ld	bc,(realaddr)		;now resolve Bchain
+	srl	b			;BCPL address of nloc
+	rr	c
+	push	hl			;save address in btab
+	call	labloop			;resolve forward refs
+bcend:	pop	hl			;get orignal btab address back
+	ld	(hl),0ffh		;set to ffff, we know the addr
+	inc	hl
+	ld	(hl),0ffh
+	inc	hl			;now point at maddr
+	ld	bc,(realaddr)		;do the same with mach. addr
+	call	labloop
+	pop	af			;get back our inst
+	jp	oneinst			;and do it
+labloop:ld	e,(hl)
+	inc	hl			;follow chain, bomb out at zero
+	ld	d,(hl)
+	ld	(hl),b
+	dec	hl
+	ld	(hl),c
+	ld	a,e
+	or	d			;was this pointer zero?
+	ret	z			;chain end
+	ex	de,hl			;not zero, put in hl and loop
+	jr	labloop
+sp2:	cp	gorg			;set global?
+	jp	nz,sp3
+	ld	bc,(nloc)		;save nloc
+	push	bc
+	call	nxtbyte			;get global no.
+	ld	l,a
+	call	nxtbyte
+	ld	h,a			;compute address of global
+	call	chkglb			;make sure its legal
+	jr	c,badglob		;else treat next inst
+	push	hl			;save global number
+	add	hl,hl			;as ordinary
+	ld	bc,(imageglobs)
+	add	hl,bc
+	pop	bc			;get global number in BC
+	ld	a,(hl)			;see if it's been set before
+	cp	low globund
+	jr	nz,glbrdef
+	inc	hl
+	ld	a,(hl)
+	dec	hl
+	cp	high globund		;error if so
+	jr	nz,glbrdef
+	ld	(nloc),hl		;and put it in nloc
+	call	nxtbyte			;do one instruction
+	call	oneinst
+badglob:pop	bc			;then restore nloc
+	ld	(nloc),bc
+	ret
+glbrdef:ld	a,1			;remember
+	ld	(errflg),a
+	push	bc			;save global number
+	ld	de,glb1mess
+	ld	c,bprtstrng
+	call	5
+	pop	bc			;restore global number
+	call	decout
+ 	ld	de,glb2mess
+	ld	c,bprtstrng
+	call	5
+	jr	badglob
+decout:	ld	a,0			;print BC in decimal
+	ld	(bpnti),a		;supress leading zeros
+	ld	de,10000
+	call	dig
+	ld 	de,1000
+	call	dig
+	ld	de,100
+	call	dig
+	ld	de,10
+	call	dig
+	ld	de,1
+	call	dig
+	ld	a,(bpnti)
+	or	a
+	ret	nz			;Must be at least one digit
+	ld	e,030h
+	ld	c,bconout
+	call	5
+	ret
+dig:	push	bc			;print one digit, powers
+	pop	hl			;of ten in de
+	ld	a,030h
+dloop:	or	a
+	sbc	hl,de
+	jr	c,outd
+	inc	a
+	push	hl
+	pop	bc
+	jr	dloop
+outd:	cp	030h
+	jr	nz,notz
+	ld	a,(bpnti)		;not leading zero
+	or	a
+	ret	z
+	ld	a,030h
+notz:	push	bc
+	push	hl
+	ld	(bpnti),a		;suppress leading zeros
+	ld	e,a
+	ld	c,bconout
+	call	5
+	pop	hl
+	pop	bc
+	ret
+
+bpnti:	db	0
+glb1mess:
+	db	'Global $'
+glb2mess:
+        db	' has been initialised twice.',0dh,0ah,'$'
+
+sp3:	cp	startsec		;clear all labels at start
+	jr	nz,sp4
+	ld	hl,(labeltab)
+	ld	(hl),0			;clear to zero
+	ld	de,(labeltab)
+	inc	de			;by copying zero through
+	ld	bc,nolabs*4-1
+	ldir
+	ld	a,0
+	ld	(glbovf),a		;no global error in this section
+	ld	(labovf),a
+	ret
+sp4:	cp	section			;section name. print it
+	jr	nz,sp5
+	ld	de,sectmess
+	ld	c,bprtstrng
+	call	5
+sp4l:	call	nxtbyte
+	or	a			;output name, until zero
+	jr	z,sp4e
+	ld	e,a
+	ld	c,bconout
+	call	5
+	jr	sp4l
+sp4e:	ld	e,CR
+	ld	c,bconout
+	call	5
+	ld	e,LF
+	ld	c,bconout
+	call	5
+	ret
+sectmess:
+	db	'Loading section $'
+sp5:	cp	needs
+	jp	nz,sp6
+	ld	b,12			;length of filename
+	ld	hl,(lastfcb)		;point to start of buffer
+fn1:	call	nxtbyte
+	ld	(hl),a			;stuff it in
+	inc	hl
+	djnz	fn1			;round unless >20 chars
+	ld	b,21
+	ld	a,0			;clear other fcb fields
+fn2:	ld	(hl),a
+	inc	hl
+	djnz	fn2
+	ld	hl,(firstfcb)		;now see if we've had this
+	push	hl
+fn4:	pop	hl
+	push	hl
+	ld	de,(lastfcb)		;filename before
+	ld	b,11			;compare 11 bytes of name
+fn3:	inc	hl			;skip over drive first
+	inc	de
+	ld	a,(de)
+	ld	c,(hl)			;compare a byte
+	cp	c
+	jr	nz,nextfcb		;not the same
+	djnz	fn3			;loop round
+	pop	hl
+	ret				;same, do not need this
+
+nextfcb:
+	pop	hl			;go to next fcb
+	ld	bc,33
+	add	hl,bc
+	push	hl
+	or	a			;clear carry
+	ld	de,(lastfcb)		;see if we've got to the end
+	sbc	hl,de
+	jr	nz,fn4			;if not,check this one
+	pop	hl
+	ld	hl,33			;if so save this fcb
+	add	hl,de
+	ld	(lastfcb),hl
+	ld	a,(filecnt)		;see how many files we have
+	inc	a
+	ld	(filecnt),a
+	cp	nofiles			;always need one spare
+	ret	nz			;return if ok
+	ld	de,fileerr		;else print error and quit
+	ld	c,bprtstrng
+	call	5
+	jp	0
+fileerr:db	'Error, too many input files.',CR,LF,'$'
+
+sp6:	cp	labsym			;label def with symbol
+	jp	nz,sp7
+	ld	hl,(nloc)		;do normal stuff for a label
+	ld	de,offset
+	or	a
+	sbc	hl,de
+	ld	(realaddr),hl
+	call	getlnp
+	jr	c,symrec		;quit if wrong
+	ld	bc,(realaddr)
+	srl	b
+	rr	c
+	push	hl
+	call	labloop
+	pop	hl
+	ld	(hl),0ffh
+	inc	hl
+	ld	(hl),0ffh
+	inc	hl
+	ld	bc,(realaddr)
+	call	labloop
+	ld	hl,(realaddr)		;get its address
+symrec:					;put into symbol file as hex
+	ld	b,4			;four hex digits
+hex2:	ld	a,3			;'0'>>4
+	add	hl,hl			;shift 4 bits from hl into a
+	rla
+	add	hl,hl
+	rla
+	add	hl,hl
+	rla
+	add	hl,hl
+	rla
+	cp	'9'+1			;is it >9?
+	jr	c,hex1
+	add	a,7			;if so adjust -> A-F
+hex1:	call	symout			;output char
+	djnz	hex2
+	ld	a,' '			;space delimiter
+	call	symout
+sp6b:	call	nxtbyte			;copy symbol name over
+	or	a			;zero marks the end
+	jr	z,sp6a
+	call	symout
+	jr	sp6b
+sp6a:	ld	a,CR			;one symbol per line
+	call	symout
+	ld	a,LF
+	jp	symout			;and return
+
+sp7:	cp	globsym			;name of global
+	jr	nz,sp8
+	call	nxtbyte			;get global number
+	ld	l,a
+	call	nxtbyte
+	ld	h,a
+	push	hl			;save it
+	ld	bc,(symtab)		;see if we've already found
+	add	hl,bc			;a symbol for this global
+	ld	a,(hl)
+	ld	(hl),0ffh		;remember this one
+	or	a
+	pop	hl			;restore global number
+	jr	nz,throw		;if done already, throw it away
+	add	hl,hl			;get address of global
+	ld	bc,(offsetglob)
+	add	hl,bc
+	jp	symrec			;put in symbol file
+throw:	call	nxtbyte			;throw away symbol if not needed
+	or	a
+	jr	nz,throw
+	ret
+
+symout:	push	de
+	push	hl
+	push	bc
+	ld	e,a			;save char
+	ld	a,(soptr)
+	ld	c,a
+	ld	b,0
+	ld	hl,(sobuff)
+	add	hl,bc			;get address of nxt byte in buf
+	ld	(hl),e			;store the byte
+	inc	a
+	ld	(soptr),a
+	cp	128			;at end?
+	jr	nz,symout1
+	ld	a,0
+	ld	(soptr),a		;zero the pointer
+	ld	a,(symfile)		;are we doing a symbol file?
+	or	a
+	jr	z,symout1		;skip if not
+	ld	de,(sobuff)		;and write it out
+	ld	c,bsetdma
+	call	5
+	ld	de,clifcb1
+	ld	c,bwrtseq
+	call	5
+	or	a			;abort on full disk
+	jp	nz,dfull
+symout1:pop	bc
+	pop	hl
+	pop	de
+	ret
+
+sp8:	ld	de,fmtmess		;anything else is an 
+	jp	perr			;internal error
+
+outbyte:
+	push	hl			;save hl
+	push	de
+	ld	hl,(nloc)
+	ld	(hl),a			;stuff byte in
+	inc	hl
+	ld	(nloc),hl
+	ld	de,(labeltab)		;see if we've collided with
+	or	a			;label table
+	sbc	hl,de
+	pop	de
+	pop	hl
+	ret	nz			;return if not
+	ld	de,memerr		;print message
+	ld	c,bprtstrng
+	call	5
+	jp	0			;abort
+memerr:	db	'Error, out of memory.',CR,LF,'$'
+nxtbyte:
+	push	de
+	push	hl
+nb1:	ld	a,(bpnt)
+	ld	e,a
+	ld	d,0
+	cp	128
+	jr	z,nxtsect		;get the next sector
+	inc	a			;increment pointer
+	ld	(bpnt),a
+	ld	hl,conbuff
+	add	hl,de			;else form address
+	ld	a,(hl)
+	pop	hl
+	pop	de
+	ret
+nxtsect:
+	push	bc
+	ld	de,conbuff
+	ld	c,bsetdma
+	call	5
+	ld	de,(curfcb)		;read from current file
+	ld	c,brdseq
+	call	5
+	ld	a,0
+	ld	(bpnt),a
+	pop	bc
+	jr	nb1
+
+
+	page
+;*********************************************************
+;* Machine level support for Z80-CP/M BCPL.              *
+;* S. Kelley.    Autumn 1987.                            *
+;*********************************************************
+startimage	equ	$
+offsetstack	equ	$+3		
+offsetglob	equ	$+5		;offset addresses of
+offsetstend	equ	$+7		;important bits
+
+		.phase	0100h
+
+;flags in fcb flag byte
+binf		equ	1	;binary mode on this stream
+eoff		equ	2	;this stream at eof
+biosdevice	equ	0	;high for an input stream
+coninf		equ	3	;high for console in
+
+;bdos functions
+bconout		equ	2
+blstout		equ	5
+bconin		equ	1
+bconstat	equ	11
+bprtstrng 	equ	9
+bgetlin		equ	10
+bsetdma		equ	26
+brdseq		equ	20
+bwrtseq		equ	21
+bclose		equ	16
+bopen		equ	15
+bdel		equ	19
+bmake		equ	22
+bpunout		equ	4
+brdrin		equ	3
+
+;misc manifests
+CR		equ	00dh	;ascii codes
+LF		equ	00ah
+EOF		equ	01ah	;ctrl-z
+QUIT		equ	003h	;ctrl-c
+true		equ	0ffffh
+false		equ	0h
+endstreamch 	equ	0ffffh
+conbuff		equ	080h	;use cpm buffer for console stuff
+
+;***********
+;* Storage *
+;***********
+		jp	bcplstart
+
+stackstart:	ds	2	;last program address
+globalbase:	ds	2	;start of global vector
+stackend:	ds	2	;end of stack, start of heap
+		db	0	;align
+currco:		dw	mainco	;current coroutine
+mainco:		ds	2	;Main co save area, MUST BE ALIGNED
+		dw	-1	;non-zero as main is always active
+outstream:	dw	1	;default to CON
+instream:	dw	1	;ditto
+outfile:	dw	0	;output file at startup
+concount:	db	0ffh	;chars taken from console buffer
+infcbs:		db	9	;biosdevice=1, coninf=1
+		db	bconin	;bdos function
+		db	1	;biosdevice=1
+		db	brdrin
+outfcbs:	db	1	;console out
+		db	bconout
+		db	1
+		db	bpunout
+		db	1
+		db	blstout
+
+		page
+;****************************************************************
+;* BCPL runtime support. this code is copied to loc 8, and      *
+;* called by restarts in compiled code.                         *
+;****************************************************************
+restart:
+	ld	(ix+0),e	;RST 8; RTAP
+	ld	(ix+1),d
+	jp	(hl)
+	nop
+	jp	(hl)		;RST 10; SRTAP
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	nop
+	add	hl,hl		;RST 18; RV
+	ld	e,(hl)
+	inc	hl
+	ld	h,(hl)		;return result in DE as well
+	ld	l,e
+	ld	d,h
+	ret
+	nop
+	add	hl,hl		;RST 20; STIND
+	ld	(hl),e		;DE -> (HL)
+	inc	hl
+	ld	(hl),d
+	ret
+	nop
+	nop
+	nop
+
+; NB    Restart locations 28H and 38H are left free for 
+;       ZSID breakpoints and Z80 mode 1 interupts respectively
+
+;****************************************************************
+;* BCPL runtime support. calls to these routines are compiled   *
+;* directly into code by the compiler.                          *
+;****************************************************************
+
+locaddr:
+	push	ix		;Frame pointer
+	pop	hl
+	add	hl,bc		;add in const
+	srl	h		;get bcpl addr
+	rr	l
+	ret
+	
+vector:				;alocate space for a vector
+	pop	de		;save return address
+	add	hl,sp		;get new SP
+	jr	nc,stckovflw	;gross overflow.
+	push	ix
+	pop	bc		;check for stack overflow
+	or	a
+	sbc	hl,bc
+	jr	c,stckovflw
+	add	hl,bc		;get new sp back
+	ld	sp,hl
+	srl	h		;return word address
+	rr	l
+	push	de		;put return addr back
+	ret			;and go
+stckovflw:
+	ld	de,ovflw
+	jp	rntmerr		;print message and quit
+
+getbyte:
+	add	hl,hl		;double it for machine
+	add	hl,de		;add in byte offset
+	ld	l,(hl)		;get the byte
+	ld	h,0		;zero top half
+	ret
+
+switch:	pop	de		;get address of table (left
+swlp: 	ld	a,(de)		;by call instruction)
+	inc	de		;HL has switch value
+	cp	l		;B is no cases
+	ld	a,(de)
+	inc	de		
+	jr	nz,nfnd
+	cp	h
+	jr	z,fnd
+nfnd:	inc	de		;skip address
+	inc	de
+	djnz	swlp		;if we fall through, default
+fnd:	ld	a,(de)
+	ld	l,a
+	inc	de
+	ld	a,(de)
+	ld	h,a
+	jp	(hl)
+
+goto:
+	inc	hl		;get the operand of the ld hl
+	ld	c,(hl)		;instruction at our target
+	inc	hl
+	ld	b,(hl)		;to do a relative adjust on SP
+	inc	hl		;HL now points to next instr
+	add	iy,bc		;IY set on entry
+	add	iy,sp		;calculate new SP
+	ld	sp,iy
+	jp	(hl)		;off we go
+ 
+oflv:				;assign to bitfield
+	or	a		;shift count in a
+oflv2:	jr	z,oflv1
+	sla	e		;shift left
+	rl	d
+	dec	a
+	jr	oflv2
+oflv1:	ld	a,e		;mask off desired field
+	and	c
+	ld	e,a
+	ld	a,d
+	and	b
+	ld	d,a
+	add	hl,hl		;get machine address
+	ld	a,c		;complement mask to zero old field
+	cpl	
+	and	(hl)		;get old value
+	or	e		;new field goes in
+	ld	(hl),a		;put it back
+	inc	hl
+	ld	a,b
+	cpl
+	and	(hl)
+	or	d
+	ld	(hl),a
+	ret
+
+ofrv:				;extract bitfield
+	push	af		;save shift count
+	add	hl,hl		;machine addr
+	ld	a,(hl)		;get value
+	and	c		;mask
+	ld	c,a
+	inc	hl
+	ld	a,(hl)
+	and	b
+	ld	h,a
+	ld	l,c		;result in HL
+	pop	af		;get shift count back
+	or	a
+ofrv1:	ret	z
+	srl 	h
+	rr	l
+	dec	a
+	jr	ofrv1
+
+rshift:	ld	a,e		;HL >> DE
+	and 	01fh		;short large shifts
+	ret	z		;return if nothing to do
+	ld	b,a
+rs1:	srl	h
+	rr	l
+	djnz	rs1
+	ret
+
+lshift:	ld	a,e		;HL << DE
+	and	01fh
+	ret	z
+	ld	b,a
+ls1:	add	hl,hl
+	djnz	ls1
+	ret
+
+logand:	ld	a,l
+	and	e
+	ld	l,a
+	ld	a,h
+	and	d
+	ld	h,a
+	ret
+
+logor:	ld	a,l
+	or	e
+	ld	l,a
+	ld	a,h
+	or	d
+	ld	h,a
+	ret
+
+neqv:	ld	a,l	
+	xor	e
+	ld	l,a
+	ld	a,h
+	xor	d
+	ld	h,a
+	ret
+
+eqv:	ld	a,l
+	xor	e
+	cpl
+	ld	l,a
+	ld	a,h
+	xor	d
+	cpl
+	ld	h,a
+	ret
+
+not:	ld	a,l
+	cpl
+	ld	l,a
+	ld	a,h
+	cpl
+	ld	h,a
+	ret
+
+abs:	bit	7,h
+	ret	z
+neg:	call	not
+	inc	hl
+	ret	
+
+;result in Carry flag
+;for <,<=,>,>=
+lesseq:				
+	or	a		;c := (hl <= de)
+	sbc	hl,de
+	jr	nz,le2
+	ccf			;cy := 1 for equals
+	ret
+le2:	jp	po,le1		;branch if no overflow
+	rl	h		;cy := sign we want neg := true
+	ccf			;but reverse if overflow
+	ret
+
+less:				;c := (hl < de)
+	or	a		;this is as above, but don't check
+	sbc	hl,de		;for zero (equality)
+	jp	po,le1
+ge1:	rl	h
+	ccf
+	ret
+
+greateq:			;c := (hl >= de)
+	or	a		;return true if positive
+	sbc	hl,de
+	jp	po,ge1
+le1:	rl	h		;use inverted if ovf
+	ret
+
+greater:			;c := (hl > de)
+	or	a		;return true if pos unless zero
+	sbc	hl,de
+	ret	z		;return hl := 0 and cy := 0
+	jp	po,ge1
+	rl	h
+	ret
+
+equals:
+	or	a		;equals and ne return hl =0,ffff
+	sbc	hl,de
+	jp	z,zero
+	ld	hl,0
+	ret
+zero:	dec	hl
+	ret
+
+neq:
+	or	a
+	sbc	hl,de
+	ret	z
+	ld	hl,0ffffh
+	ret
+
+mult:				;multiply de by hl and return in hl
+	ld	b,h
+	ld	c,l
+	ld	hl,0
+mult1:	srl	b
+	rr	c
+	jr	nc,mult2
+	add	hl,de
+mult2:	ld	a,c
+	or	b
+	ret	z
+	sla	e
+	rl	d
+	ld	a,d
+	or	e
+	jr	nz,mult1
+	ret
+
+rem:	
+	ld	a,h
+	xor	d
+	scf			;carry set to return rem
+	jr	div1
+div:				;divide hl by de, return quot in hl
+        ld	a,h		;find sign of result
+	xor	d		;clear carry
+div1:	push	af		;and save it
+	xor	d
+	call	m,neg		;make quotient positive
+	call	absde		;and divisor
+	ld	c,h		;quotient lives in CA
+	ld	a,l
+	ld	hl,0000
+	ld	b,16
+div2:	sla	a
+	rl	c		;shift quot and remainder left
+	adc	hl,hl
+	sbc	hl,de		;carry is reset
+	jp	p,div3
+	add	hl,de		;restore trial subtraction
+	djnz	div2		;loop
+	jr	div4
+div3:	or	1
+	djnz	div2
+div4:	ld	d,c
+	ld	e,a		;get the answer
+	pop	af		;is it negative
+	jr	c,div5		;branch for rem
+	ex	de,hl		;get div result into HL
+div5:	ret	p		;return if ok
+	call	not		;or negate it
+	inc	hl
+	ret
+
+absde:	ld	a,d		;get abs de and check for zero
+	or	a
+	jp	p,absde1
+	cpl
+        ld	d,a
+	ld	a,e
+	cpl
+	ld	e,a
+	inc	de
+	ret
+absde1:	or	e		;check for zero if positive
+	ret	nz
+	ld	de,zeroerr
+	jp	rntmerr
+
+twodiv:				;cheap divide by two with the same
+	bit	7,h		;action as div, ie round to zero
+	jr	z,twodiv1	;is it positive?
+	inc	hl		;increment if not for correct rounding
+twodiv1:
+	sra	h		;shift right arithmetic
+	rr	l
+	ret
+
+	page
+;*****************************
+;* Machine language library. *
+;*****************************
+
+bcplstart:
+	ld	hl,restart	;copy restart code to location 8
+	ld	de,8
+	ld	bc,020h		;four routines (leave RST 28H and 38H)
+	ldir			;copy them in
+	ld	ix,(stackstart)	;set up the stack after the program
+	ld	hl,(stackend)	;end of stack, start of heap
+	ld	sp,hl
+	ld	de,(6)		;get the top of memory
+	dec	de		;reserve a few
+	dec	de
+	ld	a,e		;word align
+	and	0feh
+	ld	e,a		;de has end of heap
+	ex	de,hl		;now hl
+	ld	(hl),1		;last block is used, length zero
+	inc	hl
+	ld	(hl),0
+	dec	hl
+	or	a
+	sbc	hl,de		;get length in hl, start in de
+	ex 	de,hl		;swap
+	ld	(hl),e
+	inc	hl
+	ld	(hl),d		;put in length of the one block
+	ld	a,(clifcb1+1)	;see if we have file parsed by the ccp
+	cp	' '		;if not blank, we do
+	jr	nz,gotfile1
+	ld	a,(clifcb1+9)
+	cp	' '
+	jr	z,callstart	;if no name
+gotfile1:
+	call	allocfcb	;get a fcb for the input file
+	ld	de,clifcb1	;get the fcb address
+	call	copyfcb		;and copy it in
+	call	openin		;open it for input
+	ld	(instream),hl	;set up the input stream
+	ld	a,(clifcb2+1)	;do the same for a possible output file
+	cp	' '
+	jr	nz,gotfile2
+	ld	a,(clifcb2+9)
+	cp	' '
+	jr	z,callstart	;if not
+gotfile2:
+	call	allocfcb
+	ld	de,clifcb2	;get the fcb sorted
+	call	copyfcb
+	call	openout		;open it
+	ld	(outstream),hl
+	ld	(outfile),hl	;remember it's open
+callstart:
+	ld	hl,(globalbase)	;to global zero
+	ld	a,(hl)
+	inc 	hl
+	ld	h,(hl)
+	ld	l,a
+	call	bcplcall	;do it
+finish:				;close any open o/p files
+	ld	hl,(outfile)	;did we open a file?
+	ld	a,h
+	or	l
+	call	nz,closeup	;close it if so
+	jp	0		;then warmstart CP/M
+
+bcplcall:
+	jp	(hl)		;call a BCPL routine
+
+globund:			;come here if we call an undef'd global
+	ld	de,undmess
+rntmerr:
+	push  	de
+	ld	de,rnerr
+	ld	c,bprtstrng
+	call	bdos
+	pop	de
+	ld	c,bprtstrng
+	call	bdos
+	jp	0		;abort
+
+rnerr:	db	CR,LF,'Runtime Error: $'
+undmess:db	'called undefined global.',CR,LF,'$'
+nsop:	db	'no selected output in WRCH.',CR,LF,'$'
+nsip:   db	'no selected input in RDCH.',CR,LF,'$'
+dferr:	db	'disk full.',CR,LF,'$'
+zeroerr:db	'division by zero.',CR,LF,'$'
+coerr:	db	'coroutine fault.',CR,LF,'$'
+ovflw:	db      'stack overflow.',CR,LF,'$'
+
+;**************************
+;* selectinput()  input() *
+;**************************
+selectinput:
+	ld	l,(ix+0)
+	ld	h,(ix+1)
+	ld	(instream),hl
+	ret
+input:
+	ld	hl,(instream)
+	ret
+getins:	
+	ld	hl,(instream)	;get pointer to current out stream
+	ld	a,h		;if >256, must be file
+	or	a
+	ret	nz
+	adc	hl,hl		;multiply by two
+	ret	z		;quit if zero
+	ld	bc,infcbs-2	;add offset
+	add	hl,bc		;return z flag as well
+	ret
+
+;****************************
+;* selectoutput() output()  *
+;****************************
+selectoutput:
+	ld	l,(ix+0)
+	ld	h,(ix+1)
+	ld	(outstream),hl
+	ret
+output:
+	ld	hl,(outstream)
+	ret
+getouts:
+	ld	hl,(outstream)	;get pointer to current out stream
+	ld	a,h		;if >256, must be file
+	or	a
+	ret	nz
+	adc	hl,hl		;multiply by two
+	ret	z		;quit if zero
+	ld	bc,outfcbs-2	;add offset
+	add	hl,bc		;return z flag as well
+	ret
+
+;*************************
+;* Wrch:                 *
+;*************************
+wrch:	
+	call	getouts		;get pointer to outstream
+	jr	nz,wrch1	;check OK
+	ld	de,nsop		;runtime error if unselected
+	jp	rntmerr
+wrch1:	ld	a,(ix+0)	;get char
+	bit	binf,(hl)	;binary stream
+	jr	nz,binary	;branch if so
+	and	07fh		;else clear top bit
+	cp	LF		;*N?
+	jr	nz,binary	
+	ld	a,CR		;translate to CR,LF
+	push	hl
+	call	binary
+	ld	a,LF
+	pop	hl
+binary:	bit	biosdevice,(hl)	;real device?
+	jr	z,fileout	;no, do a file
+	ld	e,a		;char to bios in E
+	inc	hl		;get function
+	ld	c,(hl)
+	jp	bdos		;do it
+fileout:inc	hl		;point at buffer pointer
+	push	hl		;save fcb pointer
+	ld	c,(hl)		;get buffer pointer
+	inc	(hl)		;and inc buffer pointer
+	inc 	hl		;point hl at buffer
+	ld	b,0		;calculate address
+	add	hl,bc
+	ld	(hl),a		;store in char
+	ld	a,c		;buffer pointer into a
+	pop	hl		;restore fcb pointer
+	cp	127		;buffer full?
+	ret     nz		;return if not
+wrtbuff:ld	a,0		;clear pointer
+	ld	(hl),a
+	inc	hl		;point hl at buffer
+	push	hl
+	ex	de,hl		;to de for bdos
+	ld	c,bsetdma	;set dma addr
+	call	bdos
+	pop 	hl		;restore buffer addr
+	ld	de,128		;find cpm fcb addr
+	add	hl,de
+	ex	de,hl
+	ld	c,bwrtseq	;write seq.
+	call	bdos
+	or	a		;test for disk full
+	ret	z		;return if ok
+	ld	de,dferr	;otherwise runtime error
+	jp	rntmerr
+
+
+;**************
+;* rdch:      *
+;**************		
+rdch:
+	call	getins
+	jr	nz,rd1
+	ld	de,nsip		;no selected ip runtime error
+	jp	rntmerr
+rd1:	bit	biosdevice,(hl)
+	jp	z,filein
+	bit	binf,(hl)
+	jr	z,notbin
+rdrchr:	inc	hl		;get bdos function
+	ld	c,(hl)
+	call	bdos
+nob1:	ld	l,a		;char to HL and return
+	ld	h,0
+	ret
+notbin:	call	getchr
+	and	07fh		;clear top bit
+	cp	CR		;ditch CRs
+	jr	z,notbin
+	cp	EOF		;ctrl-z -> endstreamch
+	jr	nz,nob1
+	ld	hl,endstreamch
+	ret
+getchr:	push	hl
+	bit	coninf,(hl)
+	jr	nz,cooked	;if console, cook it
+	call	rdrchr		;else get char from rdr
+	pop	hl
+	ret
+getlnz:	ld	de,conbuff	;point to buffer
+	ld	a,120		;max no chars
+	ld 	(de),a		;plant in buffer
+	ld	c,bgetlin	;read console buffer
+	call	bdos
+	ld	a,0		;clear counter
+	ld	(concount),a
+	ld	e,LF		;put out LF
+	ld	c,bconout
+	call 	bdos
+cooked:	ld	a,(concount)	;get counter
+	cp	0ffh		;do we need another line?
+	jr	z,getlnz	;branch if so
+	ld	c,a
+	ld	a,(conbuff+1)	;no chars
+	cp	c		;see if the same
+	jr	z,eol		;if so, end line
+	ld	hl,conbuff+2	;calculate address of next char
+	ld	b,0
+	add	hl,bc
+	inc	c		;inc the counter
+	ld	a,c
+	ld	(concount),a
+	ld	a,(hl)		;get it
+	pop	hl
+	ret
+eol:	ld	a,0ffh		;mark we need a new line nextime
+	ld	(concount),a
+	ld	a,LF		;and send *N
+	pop	hl
+	ret
+filein:	bit	eoff,(hl)	;previous eof?
+	jr	nz,eof1		;branch if so
+another:push 	hl	
+	inc	hl		;then point hl at the buffer pointer
+	ld	a,(hl)    	;get bp into a
+	cp	127		;buffer empty?
+	jr	nz,notebuff	;branch if not
+	inc	hl		;point hl at the buffer
+	ex	de,hl		;into de for bdos
+	ld	c,bsetdma	;set up dma address
+	call	bdos
+	pop	hl		;get buffaddr-2
+	push	hl
+	ld	de,130		;form FCB address
+	add	hl,de
+	ex	de,hl
+	ld	c,brdseq	;do read sequential
+	call	bdos
+	pop	hl		;get flag address
+	or	a		;test for EOF
+	jr	z,noteof1	;branch if not
+doeof:
+	set	eoff,(hl)	;set the eofone
+eof1:	ld	hl,endstreamch	;return endstreamch
+	ret
+noteof1:
+	push	hl
+	inc	hl		;point at buffer pointer
+	ld	a,0ffh		;clear buffer pointer
+	ld	(hl),a		;when incremented
+notebuff:
+	inc	(hl)		;increment buffer pointer
+	ld	a,(hl)
+	inc	hl		;point hl at buffer
+	ld	c,a		;pointer to bc
+	ld	b,0
+	add	hl,bc		;now have address of char
+	ld	a,(hl)		;get it
+	pop	hl
+	bit	binf,(hl)	;binary mode
+	jr	nz,binin	;all done if so
+	and	07fh		;clear top bit unless binary
+	cp	CR		;carriage return?
+	jr	z,another	;ignore, (get another)
+	cp	EOF		;ctrl-z?
+	jr	z,doeof		;do so
+binin:	
+	ld	l,a		;return char
+	ld	h,0
+	ret
+
+
+;************
+;* unrdch() *
+;************
+unrdch:				;cheap 'n cheerul unrdch, only works
+	call	getins		;on buffered streams, ie files and
+	bit	biosdevice,(hl)	;and buffered con
+	jr	nz,unrdcon	;high byte zero must be con
+	inc	hl		;must be file
+	ld	a,(hl)		;get buffer pointer
+	cp	0ffh		;at start?
+	jr	z,unrdfail	;nocando if so
+	dec	(hl)		;decrement buffer pointer
+	ld	hl,0ffffh	;done ok
+	ret
+unrdcon:bit	coninf,(hl)	;make sure it is con:
+	jr	z,unrdfail	;fail if not
+	bit	binf,(hl)	;must not be binary
+	jr	nz,unrdfail
+	ld	a,(concount)	;get count
+	dec	a
+	cp	0feh		;special case if at end of line
+	jr	nz,nreinstate
+	ld	a,(conbuff+1)	;back to getting *n
+nreinstate:
+	ld	(concount),a
+	ld	hl,0ffffh	;ok
+	ret
+unrdfail:
+	ld	hl,0
+	ret
+
+;***********************************
+;* binaryoutput(b)  binaryinput(b) *
+;***********************************
+binaryinput:
+	call	getins
+	jr	bo3
+binaryoutput:
+	call	getouts
+bo3:	ret	z		;quit if no stream
+	ld	a,(ix+0)	;get flag in a
+	or	(ix+1)
+	ld	de,0		;assume result false
+	bit	binf,(hl)
+	jr	z,bo1
+	dec	de		;result is true
+bo1:	res	binf,(hl)	;assume new value zero
+	or	a		;get flag
+	jr	z,bo2
+	set	binf,(hl)
+bo2:	ex	de,hl		;result into HL
+	ret
+
+
+;******************
+;* endread()      *
+;******************
+endread:
+	call	getins	
+	jr	z,endrdfail	;quit if no stream
+	ld	de,0		;unselect input stream
+	ld	(instream),de
+	bit	biosdevice,(hl)
+	call	z,freevec1
+	ld	hl,true		;return true always
+	ret
+endrdfail:
+	ld	hl,false
+	ret
+
+;******************
+;* endwrite()     *
+;******************
+endwrite:
+	call	getouts
+	jr	z,endrdfail
+	ld	de,0		;zero COS
+	ld	(outstream),de
+	bit	biosdevice,(hl)
+	jr	nz,endret	;return if a device
+	call	closeup		;close the file
+	call	freevec1
+endret:	ld	hl,true	
+	ret
+closeup:call	sysout
+	inc	hl		;point at count
+	push	hl
+	ld	a,(hl)		;if the buffer is empty, no need to write
+	or	a
+	jr	z,noz
+	ld	c,a		;fill the buffer to the end
+	ld	b,0		;with EOF
+	add	hl,bc
+noz1:	inc	hl
+	ld	(hl),EOF
+	inc	a
+	cp	128
+	jr	nz,noz1
+	pop	hl		;restore FCB+1
+	push	hl
+	call	wrtbuff		;write the final buffer
+	pop	hl
+noz:	push	hl
+	ld	de,129		;get cpm fcb addr
+	add	hl,de
+	ex	de,hl
+	ld	c,bclose	;close a file
+	call	bdos
+	pop	hl
+	dec	hl
+	ret
+sysout:
+	ld	bc,(outfile)	;is it the one opened on
+	or	a		;program invocation?
+	sbc	hl,bc
+	jr	nz,ew1
+	ld	(outfile),hl	;don't have to close it later then.	
+ew1:	add	hl,bc		;restore HL
+	ret
+
+;***********************************
+;* removeinput()    removeoutput() *	
+;***********************************
+removeoutput:
+	call	getouts
+	jr	z,remfail
+	ld	de,0		;zero COS
+	ld	(outstream),de
+	call	sysout
+rmcom:	bit	biosdevice,(hl)
+	jr	nz,endrem	;return if a device
+	ex	de,hl
+	ld	hl,130
+	add	hl,de		;get CPM FCB into DE
+	ex	de,hl
+	push	hl
+	ld	c,bdel		;delete the fail
+	call	bdos
+	pop	hl
+	call	freevec1
+endrem:	ld	hl,true
+	ret
+
+removeinput:
+	call	getins
+	jr	z,remfail
+	ld	de,0
+	ld	(instream),de
+	jr	rmcom
+remfail:ld	hl,false
+	ret
+
+;************************************************************
+;* parsefname: given string pointer in DE, FCB addr in HL   *
+;*             and CPM FCB addr in IY, build an FCB         *
+;* parse(name, fcb) is a BCPL callable version              *
+;************************************************************
+parse:
+	ld	e,(ix+0)	;get args
+	ld	d,(ix+1)
+	ld	l,(ix+2)
+	ld	h,(ix+3)
+	add	hl,hl		;make FCB a machine pointer
+	push	hl		;into IY
+	pop	iy		;HL is nz, so next test fails
+parsefname:
+	ld	a,h		;quit if allocfcb failed
+	or	l
+	ret	z
+	push	iy		;must preserve IY
+	sla	e
+	rl	d		;string to machine address
+	ld	a,(de)		;init string size counter
+	ld	c,a
+	inc	de		;point to first char
+	call	getnext		;get first char
+	push	af		;save it
+	call	getnext		;and second
+	cp	':'		;if second char colon, have drivespec
+	jr	nz,defdrv	;branch if using default
+	pop	af		;get first back
+	sub	'A'
+	cp	16		;in range?
+	jr	nc,defdrv1	;else treat as if no drivespec
+	inc	a
+	ld	(iy+0),a	;put in the drive position
+	call	getnext		;put in the first two chars
+	ld	(iy+1),a
+	call	getnext
+	ld	(iy+2),a
+	jr	ndef
+defdrv1:add	a,'A'
+	push	af
+	ld	a,':'
+defdrv:	ld	(iy+0),0	;default drive
+	ld	(iy+2),a	;put in first two chars
+	pop	af
+	ld	(iy+1),a
+ndef:	inc	iy
+	inc	iy
+	ld	b,6		;get next six chars
+	call	getsect
+nsect:	ld	a,c		;out of chars
+	or	a
+	jr	z,ext		;nothing to do if so
+	ld	a,(de)		;skip to find . or end
+	inc	de
+	dec	c
+	cp	'.'
+	jr	nz,nsect
+ext:	ld	b,3		;read extension
+	call	getsect
+	pop	iy
+	ret
+getsect:inc	iy
+	call	getnext
+	ld	(iy+0),a
+	djnz	getsect
+	ret
+getnext:ld	a,c		;at end
+	or	a
+	jr	z,gn3		;return space if so
+	ld	a,(de)
+	cp	'.'		;at end of section
+	jr	nz,gn1
+gn3:	ld	a,' '		;also return space
+	ret
+gn1:	cp	'*'		;wildcard to expand?
+	jr	nz,gn2
+	ld	a,'?'		;expand it
+	ret
+gn2:	inc	de		;onto next char
+	dec	c
+	cp	' '		;get another if space or control
+	jr	c,getnext
+	cp	'a'		;lc -> uc
+	ret	c
+	cp	'z'+1
+	ret	nc
+	sub	020h
+	ret
+
+;**********************************************************************
+;* allocfcb, getvec an FCB, return machine pointer in HL, and pointer *
+;* to CPM FCB in IY.                                                  *
+;* copyfcb, copy CPM fcb pointed to by DE into BCPL FCB in HL and IY  *
+;* zerofcb, clear required fields in FCB, and check that the filename *
+;* is unambiguous                                                     *
+;**********************************************************************
+allocfcb:
+	ld	iy,82		;size of fcb in words
+	call	getvec1		;find an fcb in hl
+	add	hl,hl		;machine address
+	push	hl
+	pop	iy
+	ld	bc,130		;find address of cpm part
+	add	iy,bc
+	ret
+
+copyfcb:
+ 	push	hl		;save hl
+	push	iy
+	pop	hl
+	ex	de,hl
+	ld	bc,12
+	ldir
+	pop	hl
+	ret
+
+zerofcb:
+	ld	a,l		;abort if allocfcb failed
+	or	h
+	ret	z
+	ld	(iy+12),0	;clear ex
+	ld	(iy+14),0	;and s2
+	ld	(iy+32),0	;and cr
+	push	iy		;copy into DE for the BDOS
+	pop	de
+	ld	b,11		;check for ambiguous filename
+sf1:	inc	iy
+	ld	a,(iy+0)
+	cp	'?'
+	jr	z,oerr		;free store and return zero
+	djnz	sf1
+	ret
+
+;***************
+;* findinput() *
+;***************
+findinput:
+	call	allocfcb	;get store
+	ld	e,(ix+0)
+	ld	d,(ix+1)
+	call	parsefname
+openin:
+	call	zerofcb
+	ld	a,l
+	or	h
+	ret	z		;quit if no buffer
+	res	binf,(hl)	;don't reset binary mode on rewind
+openin1:
+	push	hl
+	inc	hl		;clear buffer pointer
+	ld	(hl),127
+	ld	c,bopen		;open it
+	call	bdos
+	pop	hl		;get bcpl fcb addr back
+	inc	a		;check for error
+	jr	z,oerr
+	res	eoff,(hl)	;not at end of file
+	res	biosdevice,(hl)	;read file
+	ret
+oerr:	call	freevec1	;free store and
+	ld	hl,0		;return zero if nocando
+	ret
+
+;********************
+;* findoutput()     *
+;********************
+findoutput:
+	call	allocfcb
+	ld	e,(ix+0)
+	ld	d,(ix+1)
+	call	parsefname
+openout:
+	call	zerofcb		;do all the fcb stuff
+	ld	a,l
+	or	h
+	ret	z		;quit if no buffer
+	res	binf,(hl)
+	push	hl
+	inc	hl		;clear pointer
+	ld	(hl),0
+	push	de
+	ld	c,bdel		;delete pre-existing file
+	call	bdos
+	pop	de
+	ld	c,bmake		;make a file
+	call	bdos
+	pop	hl
+	inc	a
+	jr	z,oerr		;branch if no dir space
+	res	biosdevice,(hl)	;and write flag
+	res 	eoff,(hl)
+	ret
+
+;************
+;* rewind() *
+;************
+rewind:
+	ld	hl,(instream)
+	ld	a,h		;is it a file?
+	or	a
+	jr	z,rewerr	;error if not
+reopen:	push	hl
+	pop	iy
+	ld	bc,130
+	add	iy,bc
+	call	zerofcb		;clear bits and get cpm fcb in de
+	call	openin1		;open it again
+	ld	a,h		;make result boolean
+	or	l
+	jr	z,rewerr
+	ld	hl,0ffffh
+	ret
+rewerr:
+	ld	hl,0
+	ld	(instream),hl
+	ret
+
+;**********************
+;* endtoinput()       *
+;**********************
+endtoinput:
+	ld	hl,(outstream)
+	ld	de,0		;unselect op
+	ld	(outstream),de
+	ld	a,h		;is it file?
+	or	a
+	jr	z,rewerr	;error if not
+	push	hl
+	call	closeup		;close file
+	pop	hl
+	ld	(instream),hl	;make it the input stream
+	jp	reopen		;and open it for input
+
+;*********************
+;* bdos(func, arg)   *
+;*********************
+callbdos:
+	ld	c,(ix+0)
+	ld	e,(ix+2)
+	ld	d,(ix+3)
+bdos:	push	ix		;save IX incase BDOS doesn't
+	call	5
+	pop	ix
+	ret
+
+;*****************************************
+;* intkey() return true if ctl-c pressed *
+;*****************************************
+intkey:
+	ld	c,bconstat	;char typed?
+	call	bdos
+	or	a
+	jr	z,intf		;return false if not
+	ld	c,bconin	;get it
+	call	bdos
+	cp	QUIT		;ctl-c?
+	jr	nz,intf		;return false if not
+	ld	hl,true
+	ret
+intf:	ld	hl,false
+	ret
+	
+;************
+;* level1() *
+;************
+level1:
+	ld	hl,2;		;return the sp for the calling
+	add	hl,sp		;proc.
+	ret
+
+;************
+;* level2() *
+;************
+level2:
+	push	ix		;return P pointer of calling proc.
+	pop	hl
+	ret
+
+;***********************************
+;* longjump(level1, level2, label) *
+;***********************************
+longjump:
+	ld	l,(ix+0)
+	ld	h,(ix+1)
+	ld	sp,hl		;restore
+	ld	l,(ix+2)	;put label in hl
+	ld	h,(ix+3)
+	push	hl		;put new ix on the stack
+	ld	l,(ix+4)
+	ld	h,(ix+5)
+	pop	ix
+	jp	(hl)		;and call the label
+
+;****************
+;* stackavail() *
+;****************
+stackavail:
+	push	ix		;return free memory (in words)
+	pop	de
+	ld	hl,0		;sp in hl
+	add	hl,sp
+	or	a
+	sbc	hl,de		;difference is answer
+	srl	h
+	rr	l		;make into words
+	ret
+
+;*******************************
+;* result = muldiv(x, y, z)    *
+;*******************************
+muldiv:
+	push	ix		;we corrupt ix, so save
+	ld	a,(ix+1)	;determine sign of final result
+	xor	(ix+3)
+	xor	(ix+5)
+	push	af		;and save it
+	ld	l,(ix+4)	;save z on stack before we corrupt ix
+	ld	h,(ix+5)
+	push	hl
+	ld	l,(ix+0)	;take abs of x and y
+	ld	h,(ix+1)
+	call	abs
+	ld	c,l
+	ld	b,h		;put abs x in BC
+	ld	l,(ix+2)
+	ld	h,(ix+3)
+	call	abs
+	ld	e,l
+	ld	d,h		;multipy x and y into IX and IY
+	ld	hl,0
+	ld	ix,0
+	ld	iy,0
+md1:	srl	b
+	rr	c
+	jr	nc,md2
+	add	ix,de		;add into partial result
+	ex	de,hl		;get high part of partial prod in de
+	jr	nc,md1a
+	inc	iy
+md1a:	add	iy,de
+	ex	de,hl		;restore hl and de
+md2:	sla	e
+	rl	d
+	adc	hl,hl		;shift up partials
+	ld	a,c
+	or	b
+	jr	nz,md1
+	pop	de		;get abs z and check for zero
+	call	absde
+	push	ix
+	pop	hl
+	ld	c,h		;quotient lives in CA and on the stack
+	ld	a,l
+	push	iy
+	ld	hl,0000
+	ld	b,32
+md3:	sla	a
+	rl	c		;shift quot and remainder left
+	ex	(sp),hl
+	adc	hl,hl
+	ex	(sp),hl
+	adc	hl,hl
+	or	a
+	sbc	hl,de		;carry is reset
+	jp	p,md4
+	add	hl,de		;restore trial subtraction
+	djnz	md3		;loop
+	jr	md5
+md4:	or	1
+	djnz	md3
+md5:	pop	de
+	ld	h,c
+	ld	l,a		;get the answer
+	pop	af		;is it negative
+	pop	ix		;restore ix
+	jp	m,neg		;do it if so
+	ret
+
+;*********************
+;* in(addr) do input *
+;*********************
+in:	ld	c,(ix+0)
+	ld	b,(ix+1)	;do 16 bit address
+	in	l,(c)
+	ld	h,0
+	ret
+
+;*****************************
+;* out(addr, byte) do output *
+;*****************************
+out:	ld	c,(ix+0)
+	ld	b,(ix+1)
+	ld	a,(ix+2)
+	out	(c),a
+	ret
+
+;*************************
+;* memcpy(src, dst, len) *
+;*************************
+memcpy:	ld	l,(ix+0)	;source
+	ld	h,(ix+1)
+	add	hl,hl		;Make byte address
+	ld	e,(ix+2)
+	ld	d,(ix+3)
+	sla	e
+	rl	d
+	ld	c,(ix+4)
+	ld	b,(ix+5)
+	sla	c
+	rl	b
+	ld	a,b
+	or	c		;check for zero length
+	ret	z		;nothing to do if so
+	ldir			;do the move
+	ret
+
+;************************************************
+;* c := createco(func, size) create a coroutine *
+;************************************************
+createco:
+	ld	l,(ix+2)	;pass size to getvec
+	ld	h,(ix+3)
+	push	hl
+	pop	iy		;in IY!
+	call	getvec1
+	ld	a,l		;check for zero
+	or	h
+	ret	z
+	push	hl		;save to return
+	ld	e,(ix+2)	;size in DE
+	ld	d,(ix+3)
+	ex	de,hl		;size in HL, length in DE
+	add	hl,de		;end into HL
+	add	hl,hl		;machine address
+	ex	de,hl		;start in HL, end in DE
+	add	hl,hl		;machine address
+	ld	c,l
+	ld	b,h		;start+6 for initial P pointer
+	inc	bc
+	inc	bc
+	inc	bc
+	inc	bc
+	inc	bc
+	inc	bc
+	ex	de,hl		;end in HL, start in DE
+	dec	hl
+	ld	(hl),high costart
+	dec	hl		;put PC onto proto-stack
+	ld	(hl),low costart
+	dec	hl
+	ld	(hl),b		;and P pointer
+	dec	hl
+	ld	(hl),c		;now have proto-SP in HL
+	ex	de,hl		;now DE
+	ld	(hl),e		;put in save area at start
+	inc	hl
+	ld	(hl),d
+	inc	hl
+	ld	(hl),0		;zero means inactive
+	inc	hl
+	ld	(hl),0
+	inc	hl		;now to our function
+	ld	a,(ix+0)	;copy it in
+	ld	(hl),a
+	inc	hl
+	ld	a,(ix+1)
+	ld	(hl),a
+	pop	hl		;get start back
+	ret
+	
+coloop:	ld	(ix+0),l	;result of func is arg
+	ld	(ix+1),h	;of cowait
+	call	cowait
+costart:ld	(ix+0),l	;result of cowait is arg
+	ld	(ix+1),h	;of func
+	ld	iy,(currco)
+	ld	l,(iy+4)	;get our coroutines function
+	ld	h,(iy+5)
+	ld	de,coloop	;func returns to top of loop
+	push	de
+	jp	(hl)		;call it
+
+;********************************************
+;* deleteco() delete coroutine              *
+;********************************************
+deleteco:
+	ld	l,(ix+0)	;check its inactive
+	ld	h,(ix+1)
+	inc	hl		;get address of link
+	add	hl,hl
+	ld	a,(hl)
+	inc	hl
+	or	(hl)
+	jr	nz,pcoerr	;if its not zero, error
+	jp	freevec		;now free up the store
+
+;********************************************
+;* c = currentco() return current coroutine *
+;********************************************
+currentco:
+	ld	hl,(currco)
+	srl	h		;make it a BCPL address
+	rr	l
+	ret
+
+;*********************************
+;* callco(c, arg) call coroutine *
+;*********************************
+callco:
+	push	ix		;save P pointer on stack
+	call	savesp
+callco1:
+	ld	l,(ix+0)	;now get save area of new coroutine
+	ld	h,(ix+1)
+	add	hl,hl		;to machine pointer
+	ld	(currco),hl	;put new one in
+	ld	e,(hl)		;get new cr's SP
+	inc	hl
+	ld	d,(hl)
+	inc	hl
+	ld	a,(hl)
+	ld	(hl),c		;save link back to parent
+	inc	hl
+	or	(hl)
+	jr	z,callco2
+pcoerr:	ld	de,coerr	;if old link wasn't zero, error
+	jp	rntmerr
+callco2:
+	ld	(hl),b
+	ex	de,hl		;new SP into HL
+	ld	sp,hl		;then home
+	ld	l,(ix+2)	;return ARG in HL
+	ld	h,(ix+3)
+	pop	ix		;get IX from our new stack
+	ret			;and PC
+savesp:
+	ld	hl,2		;get our current SP
+	add	hl,sp
+	ex	de,hl		;into de
+	ld	hl,(currco)	;get address of current save area
+	ld	(hl),e		;save SP there
+	inc	hl
+	ld	(hl),d
+	ld	bc,(currco)	;get current save area again
+	ret
+
+;*********************************
+;* cowait(arg) suspend coroutine *
+;*********************************
+cowait:
+	push	ix
+	call	getcoandsp	;get currco in HL and check
+	ld	e,(hl)		;get parents save area
+	ld	(hl),0		;zero to indicate inactive
+	inc	hl
+	ld	d,(hl)
+	ld	(hl),0
+	ex	de,hl		;into hl
+	ld	(currco),hl	;parent becomes current again
+	ld	e,(hl)		;get parents SP
+	inc	hl
+	ld	d,(hl)
+	ex	de,hl		;SP into HL
+	ld	sp,hl		;then SP
+	ld	l,(ix+0)	;return ARG in HL
+	ld	h,(ix+1)
+	pop	ix		;get parents IX
+	ret			;an PC
+
+;********************
+;* resumeco(c, arg) *
+;********************
+resumeco:
+	push	ix		;put P pointer on stack
+	call	getcoandsp
+	ld	c,(hl)		;get parent
+	ld	(hl),0		;and zero
+	inc	hl
+	ld	b,(hl)
+	ld	(hl),0
+	jp	callco1		;save link and restore SP
+getcoandsp:
+	ld	de,(currco)	;get current coroutine
+	ld	hl,mainco	;check we're not COWAITing in main
+	or	a
+	sbc	hl,de
+	jp	z,pcoerr
+	ld	hl,2		;compensate for return address
+	add	hl,sp		;callee SP in HL
+	ex	de,hl		;now DE, and currco in HL
+	ld	(hl),e		;save SP
+	inc	hl
+	ld	(hl),d
+	inc	hl		;leave HL pointing at parent link
+	ret
+	
+;****************************************
+;* colongjump(c, level1, level2, label) *
+;****************************************
+colongjump:
+	push	ix
+	call	savesp		;save SP and get currco in BC
+colj2:	ld	l,(ix+0)
+	ld	h,(ix+1)
+	add	hl,hl
+	or	a
+	sbc	hl,bc		;is it our target?
+	jr	z,colj1		;branch if so
+	ld	hl,mainco	;if at end, error
+	or	a
+	sbc	hl,bc
+	jp	z,pcoerr	;print an error
+	ld	l,c		;if not make inactive and to next
+	ld	h,b
+	inc	hl
+	inc	hl
+	ld	c,(hl)		;get next one
+	ld 	(hl),0		;this one inactive now
+	inc	hl
+	ld	b,(hl)
+	ld	(hl),0
+	jr	colj2
+colj1:	ld	(currco),bc	;new currco
+	inc	ix
+	inc	ix		;set up args for longjump
+	jp	longjump
+
+;***************************************************************
+;* getvec(words)   claim heap storage.                         *
+;* The heap is based on the one in R&W-S, but we use byte      *
+;* addresses and lengths and keep the freebit in the low bit.  *
+;***************************************************************
+maxvec:	
+	push	ix		;preserve ix, we use it here.
+	ld	iy,0		;maxvec returns largest available 
+	ld	ix,0		;block
+	jr	getvec2
+getvec:	
+	ld	l,(ix+0)	;put len in IY
+	ld	h,(ix+1)
+	inc	hl		;getvec gets n+1 words
+	push	hl
+	pop	iy
+getvec1:			;assembly callable job, length in IY	
+	inc	iy		;need one control word
+getvec2:
+	ld	bc,(stackend)	;BC has base of the current block 
+newblk:	ld	de,0		;DE has length of that block
+amalg1:	ld	h,b		;get address of block length in HL
+	ld	l,c
+	add	hl,de
+	bit	0,(hl)		;is it free?
+	jr	z,unused	;branch if so
+	ld	a,(hl)		;else on to the next one
+	and 	0feh		;mask off inusebit
+	ld	e,a
+	inc	hl
+	ld	d,(hl)
+	dec	hl
+	or	d		;at end
+	jr	z,gvfail	;branch if so
+	add	hl,de		;now have next block in HL
+	ld	b,h
+	ld	c,l		;in BC where it belongs
+	jr	newblk
+unused:	ld	a,(hl)		;an unused block to add.
+	inc	hl		;get the length
+	ld	h,(hl)
+	ld	l,a
+	add	hl,de		;add into de
+	ld	d,h
+	ld	e,l
+	push	iy		;get length required
+	pop 	hl
+	or	a
+	adc	hl,hl		;in bytes, with zero flag
+	jr	z,maxvec1	;if zero, we're in maxvec
+	ex	de,hl
+	or	a
+	sbc	hl,de
+	jr	c,amalg		;if not big enough, keep trying
+	jr	z,exact		;branch if an exact fit.
+	ex	de,hl		;get length into hl, residue in de
+	ld	a,l		;put new length in our block
+	ld	(bc),a
+	inc	bc
+	ld	a,h
+	ld	(bc),a
+	dec	bc
+	add	hl,bc		;find address of end
+	ld	(hl),e		;de has address of block to be created
+	inc	hl
+	ld	(hl),d
+exact:	ld	h,b
+	ld	l,c
+	set	0,(hl)		;set used bit
+	srl	h		;get word address
+	rr	l
+	inc	hl		;skip control
+	ret
+amalg:	add	hl,de		;restore length in DE
+	ex	de,hl
+amalg2:	ld	a,e
+	ld	(bc),a		;put new length in block start
+	inc	bc		;so that we can go quicker
+	ld	a,d		;next time round
+	ld	(bc),a
+	dec	bc
+	jr	amalg1
+gvfail:	push	iy		;are we in maxvec
+	pop	hl
+	ld	a,l
+	or	h
+	jr	nz,gvfail1	;branch if not (really failed)
+	push	ix		;else return what we found
+	pop	hl
+	srl	h		;in words
+	rr	l
+	dec	hl		;less one for control
+	dec	hl		;and another 'cause we allocate
+	pop	ix		;one extra
+	ret
+gvfail1:ld	hl,0		;return 0 if failure
+	ret
+maxvec1:
+	push	ix		;see if this block is biggest
+	pop	hl
+	or	a
+	sbc	hl,de
+	jr	nc,amalg2	;branch if not
+	push	de
+	pop	ix		;record if so
+	jr	amalg2
+
+;*****************
+;* freevec(addr) *
+;*****************
+freevec:
+	ld	l,(ix+0)
+	ld	h,(ix+1)
+	ld	a,h		;if zero, quit
+	or	l
+	ret	z
+	add	hl,hl		;to byte address
+freevec1:
+	dec	hl		;back to control word
+	dec	hl
+	res	0,(hl)		;free it
+	ret
+
+progend	equ	$
+	.dephase
+
+;calculate the difference between where the image is at load time
+;and at run time
+
+offset	equ	$-progend	
+	end
+

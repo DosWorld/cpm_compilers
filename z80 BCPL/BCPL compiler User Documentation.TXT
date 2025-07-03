@@ -1,0 +1,313 @@
+               CP/M 80 BCPL compiler User Documentation.
+               =========================================
+
+1.  Files.
+----------
+
+The following files are supplied.
+
+     BCPL.COM       The compiler itself;  takes one or more BCPL 
+                    source  files,  and  produces  a  relocatable 
+                    object format file.
+ 
+     LOADB.COM      Links  and relocates one or more  relocatable 
+                    object files,  appends runtime routines,  and 
+                    either  executes the  resulting  program,  or 
+                    saves it as a .COM file.
+
+     PATCH.COM      Patches LOADB.COM to alter the size of the 
+                    global vector and stack which it provides.
+
+     LIBRARY        Relocateable  object format  file  containing 
+                    the standard library.
+
+     LIBHDR         Header  file containing declarations for  the 
+                    standard  library,  and  a  NEEDS  directive, 
+                    which   will   cause  the  standard   library 
+                    (LIBRARY)  to  be  automatically  loaded   by 
+                    LOADB.COM.
+     
+     BLIB.B         Source code for LIBRARY.
+
+     RANDLIB        Relocateable object format file containing  a 
+                    library for using CPM random-access files.
+
+     RANDHDR        Header file for RANDLIB
+
+     RAND.B         Source code for RANDLIB
+
+
+2.   Invoking the compiler.
+---------------------------
+
+The compiler is invoked by executing the file BCPL.COM,  the BCPL 
+command takes zero, one or two file names. Note that there are no
+compiler options.
+
+The command
+
+BCPL
+
+Will  compile  a  program typed at the  keyboard,  and  save  the 
+resulting object in a file called BCPL.OUT on the default disk.
+
+
+BCPL <source>
+
+Will  compile the BCPL in file <source>,  and save the result  in 
+BCPL.OUT, on the default disk.
+
+BCPL <source> <destination>
+
+Will  compile  the  BCPL  in  <source> and  save  the  result  in 
+<destination>.
+
+
+3.   Invoking the loader.
+-------------------------
+
+The  loader is invoked by executing the file LOADB.COM,  as  with 
+the compiler, zero, one, or two filenames can be given, and there 
+are no command line options.
+
+The command
+
+LOADB
+
+Will  load the file BCPL.OUT from the default disc,  along  with 
+any  other  files specified by it,  append the  machine  language 
+support, and execute the resulting program.
+
+LOADB <source> 
+
+Will act as above, but the input file name is <source>
+
+LOADB <source> <destination>
+
+Will produce the executable image as before,  and then save it in 
+the file specified by <destination>. This will normally be a .COM 
+file.  The  resulting file is independent,  and can  be  executed 
+without any other BCPL system files being available.
+
+If the filename extension is omitted from the destination, the
+loader will generate two files, 
+
+<destination>.COM
+<destination>.SYM
+
+the .SYM file is of the correct format to be used as a symbol file for the 
+Digital Research ZSID debugger.
+
+
+4.   The compiler in detail.
+----------------------------
+
+It   is   assumed  that  this  documenation  is  being  read   in  
+conjunction with "BCPL - the language and its compiler" by Martin 
+Richards  and  Colin Whitby-Strevens (CUP  1980),  which  is  the 
+standard reference for the language. This document only indicates 
+differences  from  R&W,  and clarifies  implementation  dependent 
+points.
+
+The  compiler accepts the language as described in the  reference 
+section  of  R&W,  with a few extensions.  The  byte  indirection 
+operator  (%) is implemented (Page 58).  The monadic ABS operator 
+is also implemented, as is the field selector extension. 
+
+A  single  source  file may be  split  into  separately  compiled 
+sections by ending each section with a dot in a position where it 
+is  not part of an identifier.  The object code from each section 
+is concatenated in the output file.
+
+A section may be named by including the directive
+
+SECTION "<name>"
+
+as the first statement. This has no effect except that the loader 
+will print the message
+
+Loading <name>
+
+when it starts loading that section.
+
+The NEEDS directive is implemented,  but not as described in R&W. 
+A directive of the form 
+
+NEEDS "<filename>"
+
+may  appear  in any block-head (ie  anywhere  that  LET,  STATIC, 
+GLOBAL  or  MANIFEST may  appear.) Its effect is that of a  "load 
+time GET" ie,  at load time,  the object file given by <filename> 
+is  loaded,  after  the  object file  which  includes  the  NEEDS 
+directive.   Including  a NEEDS  directive in a  standard  header 
+file  will  ensure the loading of the code being declared in  the 
+header.  The  standard LIBHDR has a NEEDS "LIBRARY" directive  in 
+it.  NEEDS  can also be used to support separate compilation.  If 
+the modules of a system are compiled into (say)
+
+OBJECT1
+OBJECT2
+OBJECT3
+
+then a BCPL file consisting merely of
+
+NEEDS "OBJECT1"
+NEEDS "OBJECT2"
+NEEDS "OBJECT3"
+
+when compiled, will produce a "link control file" which when used 
+as  the  input to the loader will cause the whole  system  to  be 
+linked.  Note  that  the  loader will not include the  same  file 
+twice.  This  is important if for instance more than one  section 
+GETs LIBHDR, with its NEEDS "LIBRARY" directive. Only one copy of 
+LIBRARY is needed, and one is what you'll get.
+
+Arithmetic:  The word size is 16 bits. TRUE is represented as -1, 
+and FALSE is 0. The relation operators return these values. Two's 
+complement  arithmetic is used,  and divsion and remainder  round 
+towards zero.  ie -1/2 is equal to zero, not -1. Division by zero 
+is trapped, and generates a fatal run-time error. Overflow is not 
+trapped, and simply returns the true result truncated to 16 bits.
+
+
+5.  Library.
+------------
+
+The  standard library supplied with the compiler is in two parts, 
+half is implemented on assembly language,  and half in BCPL.  The 
+assembly  language part is automatically included  in  executable 
+files by the loader, along with run-time code for multiplication, 
+division &c.  The image of this code is stored internally by  the 
+loader,  it  occupies  about  2.5K.  These  routines  are  always 
+available to all BCPL programs,  they are accessed via the  first 
+thirty or so global varibales.  The second half of the library is 
+written  in  BCPL,  and  accessed  using  the  standard  separate 
+compilation  techniques in BCPL.  The object code is in the  file 
+LIBRARY, and the standard library header contains the directive
+
+NEEDS "LIBRARY"
+
+which  causes  the code to be included at load time.  Within  the 
+header,  LIBHDR, the declarations are split into those to do with 
+the  assembly  language library,  and those to do with  the  BCPL 
+libaray.  If  an  application does not  require  the  later,  its 
+declarations and the NEEDS directive can be removed. leaving only 
+the  declarations  required  to  access  the  assembly   language 
+library.
+
+The    assembly   language   library   provides   the   following 
+routines/functions.
+
+WRCH          Output a character
+RDCH          Input a character
+ENDTOINPUT    Close COS, and reopen as CIS
+REWIND        Set CIS file pointer to start of file
+BINARYINPUT   Set CIS to binary mode   
+BINARYOUTPUT  Set COS to binary mode
+SELECTINPUT   Select CIS
+SELECTOUTPUT  Select COS
+ENDREAD       Close CIS
+ENDWRITE      Close COS
+FINDINPUT     Open named file for input
+FINDOUTPUT    Open named file for output
+INPUT         Return CIS
+OUTPUT        Return COS
+LONGJUMP      Non-local GoTo
+LEVEL1        Provide args for LONGJUMP
+LEVEL2           "     "    "    "   "
+STACKAVAIL    Returns free stack
+PARSE         Parse file name into CP/M format FCB
+BDOS          Call the CP/M BDOS
+MULDIV        Evaluate X*Y/Z without overflow
+GETVEC        Allocate heap space
+FREEVEC       Free heap space
+MAXVEC        Return maximum size accepted by GETVEC
+MEMCPY        Fast memory block copy
+CREATECO      Create a coroutine
+DELEECO       Destroy a coroutine
+CALLCO        Call a coroutine
+COWAIT        Suspend a coroutine
+RESUMECO      Transfer control to a coroutine
+COLONGJUMP    Cross-coroutine version of LONGJUMP
+INTKEY        Return true if ctrl-C pressed
+REMOVEINPUT   Delete the current input file
+REMOVEOUTPUT  Delete the current output file
+
+While the BCPL library provides these functions/routines.
+
+RANDOM        Pseudo-random numbers
+NEWLINE       Output a newline character using WRCH
+NEWPAGE       Output a form-feed using WRCH
+WRITES        Output a string using WRCH
+WRITED        Output a decimal number using WRCH
+WRITEU        Output unsigned decimal number using WRCH
+WRITEN        Output a decimal number in a given field using WRCH
+WRITEOCT      Output an n-digit octal number using WRCH
+WRITEO        Output a 6-digit octal number using WRCH
+WRITEHEX      Output an n-digit hexadecimal number using WRCH
+WRITEX        Output a 4-digit hex number using WRCH
+WRITEF        General purpose output using WRCH
+READN         Read in a decimal number using RDCH
+
+LIBHDR  also  declares  a few  MANIFEST  constants,  ENDSTREAMCH, 
+BYTESPERWORD,  etc.  It also declares CON,RDR,PUN,  and LST which 
+can  be  fed in SELECTINPUT and SELECTOUTPUT to access  the  CP/M
+logical devices.
+
+
+6.  Run-time Environment.
+-------------------------
+
+As supplied, the LOADB will generate binaries which allocate 2000 
+words  to  the run-time stack,  and have a global vector  of  200 
+words. These defaults can be changed with the PATCH program.
+
+All  the  rest  of the TPA is assigned to the heap,  and  can  be 
+allocated  using  GETVEC.  FINDINPUT,  FINDOUTPUT,  and  CREATECO 
+automatically take store from the heap using GETVEC.
+
+If a binary is invoked without any filenames, the CIS and COS are
+both  set to CON,  the console device.  If one extra filename  is 
+given,  that file is opened for input and becomes CIS at startup. 
+If two extra filenames are given, the first is used as above, and 
+the second opened for output, and assigned to COS.
+
+So. 
+
+MYFILE         
+executes MYFILE.COM, input and output to console.
+
+MYFILE INFILE
+executes MYFILE.COM, taking default input from INFILE
+
+MYFILE INFILE OUTFILE
+executes  MYFILE.COM,  taking  default  input  from  INFILE,  and 
+putting default output in OUTFILE. If OUTFILE already exists, its 
+contents are lost.
+
+Note  that  a OUTFILE is automatically closed  when  the  program 
+exits.  This  only happens to a file opened by the system,  files 
+opened by FINDOUTPUT must be explicitly closed using ENDWRITE.
+
+
+7.  The random access library.
+------------------------------
+
+There  is  a  small library  supplied,  written  in  BCPL,  which 
+provides CP/M random access files.  Inspection of the source will 
+show how to use it. Note the use of the library routine BDOS.
+
+
+8.  Authorship.
+---------------
+The compiler was written by Simon Kelley. It was based on the
+original OCODE compiler written by Martin Richards.
+
+Simon Kelley can be contacted at:
+Trinity College, Cambridge, CB2 2AL, ENGLAND
+
+or by email:
+srk@uk.ac.cam.cl
+
+
+

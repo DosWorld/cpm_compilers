@@ -1,0 +1,52 @@
+Wed 07/02/2025 22:35:23.76 
+test case e 
+
+Z80 BCPL Compiler starting....
+Workspace available is 14503 words.
+
+Workspace used was 1526 words.
+No errors.
+
+Z80 BCPL Loader starting....
+
+Stack size will be 2000 words
+Global vector will be 200 words
+
+Loading section BLIB
+
+271828182845904523536028747135266249775724709369995957496696762772407663035354759457138217852516642742746639193200305992181741359662904357290033429526059563073813232862794349076323382988075319
+done
+test case sieve 
+
+Z80 BCPL Compiler starting....
+Workspace available is 14503 words.
+
+Workspace used was 1529 words.
+No errors.
+
+Z80 BCPL Loader starting....
+
+Stack size will be 2000 words
+Global vector will be 200 words
+
+Loading section BLIB
+
+10 iterations
+
+1899 primes
+test case ttt 
+
+Z80 BCPL Compiler starting....
+Workspace available is 14503 words.
+
+Workspace used was 2622 words.
+No errors.
+
+Z80 BCPL Loader starting....
+
+Stack size will be 2000 words
+Global vector will be 200 words
+
+Loading section BLIB
+
+6493 moves

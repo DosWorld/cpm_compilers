@@ -1,0 +1,10 @@
+// header file for random IO package
+
+needs "randlib"
+
+manifest $( blocksize=64 $)
+
+global 
+$( updateblockfile:39; closeblockfile:40; readblock:41
+   writeblock:42; blockfilesize:43; createblockfile:44 $)
+
