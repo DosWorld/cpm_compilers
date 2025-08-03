@@ -23,7 +23,7 @@ The benchmarks include:
   * sieve: The classic from BYTE Magazine that counts prime numbers. Measures array and loop performance.
   * e: Computes the irrational number e to 192 digits. Measures integer multiply/divide along with array and loop performance.
   * ttt: proves you can't win at tic-tac-toe if the opponent is competent. Measures function call and stack access along with array and loop performance.
-  * tm: test malloc. This calls malloc/calloc/free in the C runtime to measure performance. It's C only and many compilers can't run it.
+  * tm: test malloc. This calls malloc/calloc/free in the C runtime to measure performance. It's C-only and many compilers can't run it.
 
 To run the compilers on Windows, use the m.bat script in each folder. e.g.:
   * m sieve
@@ -35,7 +35,7 @@ On Linux or MacOS use m.sh:
   * m.sh e
   * m.sh ttt
 
-To run the resulting apps, use NTVCM's -c flag to force console mode and -p flag to show performance information. The interpreters have other modes for running; see their respective m.bat files for details.
+To run the resulting apps, use NTVCM's -c flag to force console mode and -p flag to show performance information. The interpreters have other modes for running; see their respective m.bat/m.sh files for details.
   * ntvcm -c -p sieve
   * ntvcm -c -p e
   * ntvcm -c -p ttt
@@ -48,9 +48,9 @@ The build scripts assume ntvcm is in your path. Linux systems generally have cas
 
 If you're running Linux or MacOS and see perplexing compilation errors or infinite loops in the compiler, it could be your source files don't have cr/lf line separators. Use unix2dos to add them; nearly all these compilers require them. Also, some compiler support/include text files require CR/LF; the BCPL compilers are good examples of this. If you clone this repo on non-Windows it's possible the CR characters were stripped and you need to add them back with unix2dos.
 
-Some compilers require a ^Z / 0x1a at the end of files. Since CP/M text files end in ^z/0x1a, unix2dos requires -f to force the conversion of what it thinks is a binary file.
+Some compilers require a ^Z / 0x1a at the end of files. Since CP/M text files end in ^z/0x1a, unix2dos requires -f to force the conversion of what it thinks is a binary file. You may need to append a ^z manually to get some compilers to work.
 
-The BA compiler is in the [tic-tac-toe and its applicability to nuclear war](https://github.com/davidly/ttt) repo. It generates code for 6502, 8080, 8086, x86, x64, arm32, arm64, and 64-bit RISC-V.
+The BA compiler is in the [tic-tac-toe and its applicability to nuclear war](https://github.com/davidly/ttt) repo. It generates code for 6502, 8080, 8086, x86, x64, 68000, arm32, arm64, and 64-bit RISC-V.
 
 The Cowgol 0.6.1 compiler has not yet been tested with NTVCM and the benchmark and build scripts don't yet exist. If you have the interest have at it and send a pull request.
 
