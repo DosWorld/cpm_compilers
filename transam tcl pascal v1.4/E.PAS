@@ -33,7 +33,7 @@ BEGIN
             X := 10 * A[ N ] + D;
         UNTIL N = 0;
 
-        WRITE( X );
+        WRITE( X : 0 );
     UNTIL 9 = HIGH;
 
     WRITELN;
