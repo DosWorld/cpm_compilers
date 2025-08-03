@@ -32,7 +32,7 @@ begin
             n := n - 1;
         until n = 0;
 
-        Write( x );
+        Write( x : 0 );
     until 9 = high;
 
     writeln;
