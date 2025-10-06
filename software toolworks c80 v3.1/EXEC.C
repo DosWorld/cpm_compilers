@@ -1,156 +1,159 @@
-/* exec: function to chain to another C-generated com file, with
-/*       text argument passing.                         (9/6/83)
+/* exec: function to chain to another C-generated com file, with     (1/15/84)
+/*	 text argument passing.
 /* Calling sequence:
-/*       exec(prog, args);
-/*       char *prog, *args;
+/*	 exec(prog, args);
+/*	 char *prog, *args;
 /* where
-/*       prog is the name of the program being executed next
-/*       args is a pointer to a string of arguments separated by
-/*         blanks or tabs.  Embedded blanks within the arguments are
-/*         not allowed, unless the called program does not use the
-/*         default FCB parameters (and most don't) and can parse the
-/*         command line parameter list itself (like C80 programs can).
+/*	 prog is the name of the program being executed next
+/*	 args is a pointer to a string of arguments separated by
+/*	   blanks or tabs.  Embedded blanks within the arguments are
+/*	   not allowed, unless the called program does not use the
+/*	   default FCB parameters (and most don't) and can parse the
+/*	   command line parameter list itself (like C80 programs can).
 */
-
-exec() {
+exec(prog,args)
+char *prog,*args;
+{
 #asm
-        JMP @exec
+	JMP @exec
 ;
-;       CP/M memory pointers
+;	CP/M memory pointers
 ;
-@BASE   EQU 0000H       ;either 0 or 4200h for CP/M systems
-@FCB    EQU @BASE+5CH   ;default file control block
-@TBUFF  EQU @BASE+80H   ;sector buffer
-@BDOS   EQU @BASE+5     ;bdos entry point
-@TPA    EQU @BASE+100H  ;transient program area
-@ERRV   EQU 255         ;error value returned by bdos calls
+@BASE	EQU 0000H	;either 0 or 4200h for CP/M systems
+@FCB	EQU @BASE+5CH	;default file control block
+@TBUFF	EQU @BASE+80H	;sector buffer
+@BDOS	EQU @BASE+5	;bdos entry point
+@TPA	EQU @BASE+100H	;transient program area
+@ERRV	EQU 255 	;error value returned by bdos calls
 ;
-;       CP/M BDOS CALL MNEMONICS
+;	CP/M BDOS CALL MNEMONICS
 ;
-@OPENC  EQU 15          ;open a file
-@READS  EQU 20          ;read a sector (sequential)
-@SDMA   EQU 26          ;set dma
+@OPENC	EQU 15		;open a file
+@READS	EQU 20		;read a sector (sequential)
+@SDMA	EQU 26		;set dma
 ;
-;       Argument pointers
+;	Argument pointers
 ;
-@ARGS:  DS 0
-@ARG1:  DS 2
-@ARG2:  DS 2
-@ARG3:  DS 2
-@ARG4:  DS 2
-@ARG5:  DS 2
-@ARG6:  DS 2
+@ARGS:	DS 0
+@ARG1:	DS 2
+@ARG2:	DS 2
+@ARG3:	DS 2
+@ARG4:	DS 2
+@ARG5:	DS 2
+@ARG6:	DS 2
 ;
-@exec:  LXI H,4
-        DAD SP
-        MOV E,M
-        INX H
-        MOV D,M         ;DE points to program name now
-        LXI H,-60
-        DAD SP          ; compute &newfcb for use here
-        PUSH H          ; save for much later (will pop into bc)
-        PUSH H          ;make a few copies for local use below
-        PUSH H
+@exec:	LXI H,4
+	DAD SP
+	MOV E,M
+	INX H
+	MOV D,M 	;DE points to program name now
+	LXI H,-60
+	DAD SP		; compute &newfcb for use here
+	PUSH H		; save for much later (will pop into bc)
+	PUSH H		;make a few copies for local use below
+	PUSH H
 #endasm
-        x_fcb();
+	x_fcb();	/* set up com file for exec-ing */
 #asm
-        POP H           ;get new fcb addr
-        LXI B,9         ;set extension to com
-        DAD B
-        MVI M,'C'
-        INX H
-        MVI M,'O'
-        INX H
-        MVI M,'M'
-        POP D           ;get new fcb addr again
-        MVI C,@OPENC    ;open the file for reading
-        CALL @BDOS
-        CPI @ERRV
-        JNZ @NOERR
-        POP H           ;if can't (like it doesn't exist), return -1
-        LXI H,-1
-        RET
-@NOERR: LXI H,4         ;get args pointer
-        DAD SP
-        MOV A,M         ;HL = *HL
-        INX H
-        MOV H,M
-        MOV L,A
-        CALL @SPARG     ;separate them into individual strings
-        LHLD @ARG1
-        MOV A,H
-        ORA L
-        JNZ @EXCL0
-        LXI D,@ARG1     ;no arguments -- create a blank FCB
-        PUSH D          ;call x?fcb with null string
-        LXI H,@FCB
+	POP H		;get new fcb addr
+	LXI B,9 	;set extension to com
+	DAD B
+	MVI M,'C'
+	INX H
+	MVI M,'O'
+	INX H
+	MVI M,'M'
+	POP D		;get new fcb addr again
+	MVI C,@OPENC	;open the file for reading
+	CALL @BDOS
+	CPI @ERRV
+	JNZ @NOERR
+	POP H		;if can't (like it doesn't exist), return -1
+	LXI H,-1
+	RET
+@NOERR: LXI H,4 	;get args pointer
+	DAD SP
+	MOV A,M 	;HL = *HL
+	INX H
+	MOV H,M
+	MOV L,A
+	CALL @SPARG	;separate them into individual strings
+	LHLD @ARG1
+	MOV A,H
+	ORA L
+	JNZ @EXCL0
+	LXI D,@ARG1	;no arguments -- create a blank FCB
+	PUSH D		;call x?fcb with null string
+	LXI H,@FCB
 #endasm
-        x_fcb();
+	x_fcb();	/* */
 #asm
-        POP H
-        JMP @EXCL6
+	POP H
+	JMP @EXCL6
 
 @EXCL0: XCHG
-        LXI H,@FCB
+	LXI H,@FCB
 #endasm
-        x_fcb();
+	x_fcb();	/* stick first param into default FCB slot */
 #asm
-        LHLD @ARG2      ;and stick second param string
-        MOV A,H
-        ORA L
-        JNZ @EXCL6
-        LXI H,@ARG2
+	LHLD @ARG2	;and stick second param string
+	MOV A,H
+	ORA L
+	JNZ @EXCL6
+	LXI H,@ARG2
 
-@EXCL6: XCHG            ;into second default fcb slot
-        LXI H,@FCB+16
+@EXCL6: XCHG		;into second default fcb slot
+	LXI H,@FCB+16
 #endasm
-        x_fcb();
+	x_fcb();
 #asm
-        LXI D,@TBUFF+1   ;now construct command line:
-        LXI H,4
-        DAD SP          ;HL points to arg string pointer
-        MOV A,M
-        INX H
-        MOV H,M
-        MOV L,A
-        MVI B,0         ;char count for com. line buf.
-        MOV A,H         ;are there any arguments?
-        ORA L
-        JZ @EXCL9
-        ORA M           ; (Bug fix 7/83 WB)
-        JNZ @EXCL5
-@EXCL9: STAX D          ;no--zero TBUFF and TBUFF+1
-        JMP @EXCL2
-@EXCL5: MVI A,' '       ;yes--start buffer off with a ' '
-        STAX D
-        INX D
-        INR B
-@EXCL1: MOV A,M         ;now copy argument string to command line
-        CALL NAM@U##    ;Make sure they're upper case
-        STAX D
-        INX D
-        INX H
-        INR B
-        ORA A
-        JNZ @EXCL1
-        DCR B
+	LXI D,@TBUFF+1	 ;now construct command line:
+	LXI H,4
+	DAD SP		;HL points to arg string pointer
+	MOV A,M
+	INX H
+	MOV H,M
+	MOV L,A
+	MVI B,0 	;char count for com. line buf.
+	MOV A,H 	;are there any arguments?
+	ORA L
+	JZ @EXCL9
+	ORA M		; (Bug fix 7/83 WB)
+	JNZ @EXCL5
+@EXCL9: STAX D		;no--zero TBUFF and TBUFF+1
+	JMP @EXCL2
+@EXCL5: MVI A,' '	;yes--start buffer off with a ' '
+	STAX D
+	INX D
+	INR B
+@EXCL1: MOV A,M 	;now copy argument string to command line
+	CPI 'a' 	;make sure it's upper case
+	JM @EXCL8
+	SUI 'a'-'A'
+@EXCL8: STAX D
+	INX D
+	INX H
+	INR B
+	ORA A
+	JNZ @EXCL1
+	DCR B
 
-@EXCL2: LXI H,@TBUFF    ;set length of command line
-        MOV M,B         ;at location tbuff
+@EXCL2: LXI H,@TBUFF	;set length of command line
+	MOV M,B 	;at location tbuff
 
-        LXI D,@CODE0    ;copy loader down to end of tbuff
-        LXI H,@TPA-42
-        MVI B,42        ;length of loader
+	LXI D,@CODE0	;copy loader down to end of tbuff
+	LXI H,@TPA-42
+	MVI B,42	;length of loader
 @EXCL4: LDAX D
-        MOV M,A
-        INX D
-        INX H
-        DCR B
-        JNZ @EXCL4
+	MOV M,A
+	INX D
+	INX H
+	DCR B
+	JNZ @EXCL4
 
-        POP B                   ;get back working fcb pointer
-        LHLD @BASE+6
-        SPHL
+	POP B			;get back working fcb pointer
+	LHLD @BASE+6
+	SPHL
 	LXI H,@BASE
 	PUSH H			;set base of ram as return addr
 	JMP @TPA-42		;(go to `CODE0:')
@@ -222,5 +225,8 @@ exec() {
 @ARGST: DS 100
 #endasm
 }
-
-@SP
+r RMAC */
+}
+(CP/M always terminates on 0) */
+#endif
+$A7:	MOV	A,M		/* Ski

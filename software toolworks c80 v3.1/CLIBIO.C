@@ -1,25 +1,24 @@
 /* CLIBIO.C : includes environment dependent routines (e.g, argument list
 /*	      preparation, I/O).  This code is not ROMable and must
 /*	      be replaced if a ROMable object module is to be generated.
-/* IMPORTANT: CLIBIO must be loaded last in the object module.
+/* IMPORTANT: CLIBIO must be loaded last in the object module to define $END.
 */
 
-/* C/80 3.0 runtime library. (c) 1983 Walter Bilofsky.	All rights
+/* C/80 3.1 runtime library. (c) 1983 Walter Bilofsky.	All rights
    reserved.  This library in C source and assembler source form may
    not be copied or transmitted to other than the original purchaser
    of C/80.  Executable object modules including code produced by
    C/80 and by this library may be distributed without restriction;
    acknowledgement that C/80 is used would be appreciated. */
 
-#include "config"		/* config just defines MAC (for M80 code
-				   generation) or not (for AS code), and
-				   CP/M, or not (for HDOS) */
+/*#define HDOS HDOS		/* Define this for HDOS system, else CP/M */
+/*#define NOMAC NOMAC		/* Define this for AS, else Macro-80 */
 
 /* NFILES = number of files open at one time. */
 #define NFILES	6
 #define NULL	0
 
-#ifdef CPM		/* CP/M definitions */
+#ifndef HDOS		 /* CP/M definitions */
 
 #define EXIT 0
 #define SCIN 1
@@ -72,20 +71,21 @@
 /* Get all possible memory and put stack up at the top. */
 
 #asm
-; CLIBRARY.ASM 3.0 (7/18/83) - (c) 1982, 1983 Walter Bilofsky
+; CLIBRARY.ASM 3.0 (4/3/84) - (c) 1982, 1983, 1984 Walter Bilofsky
 ; Multiply and divide routines (c)1981 UltiMeth Corp. Permission is gran-
 ; ted to reproduce them without charge, provided this notice is included.
 
-#ifndef MAC
+#ifdef NOMAC
 	ORG	PROGFWA
 #else
 	EXT	main,c.ugt,c.uge,c.sxt,s.1,h.,q.
-	ENTRY	exit,fin,fout,.PC2,CP_M,$END
-#ifdef CPM
+	ENTRY	exit,fin,fout,__PC2,__CL2,CP_M,$END
+#ifndef HDOS
 x?fcb	EQU	x_fcb
-NAM@U	EQU	NAM.U
-@PC2	EQU	.PC2
-	ENTRY	Cmode,CtlCk,x_fcb,CtlB,x?fcb,NAM@U,@PC2
+NAM.U	EQU	NAM@U
+??PC2	EQU	__PC2
+??CL2	EQU	__CL2
+	ENTRY	Cmode,CtlCk,x_fcb,CtlB,x?fcb,NAM@U,??PC2,??CL2
 #endif
 #endif
 
@@ -96,7 +96,7 @@ C_lib () {	/* this just to cause generation of code in CODE section,
 		/* with arguments */
 #asm
 
-#ifdef CPM
+#ifndef HDOS
 CP_M	EQU	1
 $AS	EQU	$+2		/* CP/M- use this code area for argv arg list */
 $AG	EQU	$
@@ -136,7 +136,7 @@ $INIT:	LXI	H,exic
 	SHLD	IObuf+4
 	DCR	H
 	SHLD	IObuf+2
-#ifdef CPM
+#ifndef HDOS
 	LXI	B,-FCBLEN	/* Allocate 3 FCBs */
 	DAD	B
 	SHLD	IOfcb+4
@@ -152,9 +152,18 @@ $INIT:	LXI	H,exic
 	MVI	M,132
 #endif
 	DCX	H
-	SPHL		/* Set up stack */
-#ifdef CPM			/* Parse command line; build args from $AS */
-	LXI	H,ARGLIN	/* Get address of arg line */
+	SPHL			/* Set up stack */
+#ifndef HDOS			 /* Parse command line; build args from $AS */
+#ifndef NOMAC
+	LXI	D,Q8QENDD	/* Set sbrk locn to higher of code, data segs */
+	PUSH	D
+	LXI	H,$END
+	CALL	c.ugt
+	POP	H
+	JZ	$A81
+	SHLD	$LM
+#endif
+$A81:	LXI	H,ARGLIN	/* Get address of arg line */
 	MOV	E,M		/* And char count */
 	MVI	M,' '		/* Add on space we might or might not take */
 	MVI	D,0
@@ -185,7 +194,7 @@ $A8:	PUSH	B
 	LHLD	$AT	/* Now to arg list.  Address of arg string */
 #endif				/* line in HL, arg array atop stack. */
 $A2:	DS	0		/* Scan next argument. */
-#ifndef CPM
+#ifdef HDOS
 	LXI	D,STK		/* HDOS - check for end of stack area */
 	MOV	A,E
 	CMP	L
@@ -251,7 +260,7 @@ exit:	LHLD	fout
 	JZ	$B4
 	PUSH	H
 	CALL	fclose
-#ifdef CPM
+#ifndef HDOS
 $B4:	JMP	-5+BDOS
 exic	EQU	exit
 #else
@@ -287,7 +296,7 @@ $B3:	POP	B
 	DCX	D
 	PUSH	D
 	JMP	$A2
-#ifdef CPM
+#ifndef HDOS
 $B0:	LXI	D,$BMS
 	MVI	C,PRINT
 	CALL	BDOS
@@ -306,9 +315,9 @@ fout:	DW	0
 
 /* Allocate memory; return -1 if none available (with 500 byte threshold) */
 
-/* WARNING : upon compiler execution, $LM MUST point to the very end
-	     of the compiler. Because the last section loaded is the
-	     DATA section, $LM must be defined in there.
+/* WARNING : upon program execution, $LM MUST point to the very end
+	     of the program.  Because LINK and L80 load the data segment
+	     differently, $LM is computed at initialization time.
 */
 sbrk (n) int n; {
 #asm
@@ -351,7 +360,7 @@ getchar() {
 	CALL	getc
 	POP	B
 	RET
-#ifdef CPM
+#ifndef HDOS
 Ccnt:	DB	0
 Cbuf:	DS	2
 Cmode:	DB	1		/* Set to 0 for raw console input */
@@ -404,9 +413,9 @@ $B8Z:	CALL	CtlB-1		/* Enter here to process ^B and reread */
 $B8:	MVI	A,PUNIT 	/* Enter here to read from console */
 $GCH:	LXI	H,IOpread	/* Enter here for CHAR IN; A = unit */
 	CALL	$PU
-	RC		/* Return if error */
+	RC			/* Return if error */
 	PUSH	B		/* Save sys fn */
-	LDA	Cmode	/* Check if line mode & console input(both 1)*/
+	LDA	Cmode		/* Check if line mode & console input(both 1)*/
 	CMP	C
 	JNZ	$GC1		/* If so, */
 	CALL	$RLIN		/* read a char from console in line mode */
@@ -416,7 +425,8 @@ $GCH:	LXI	H,IOpread	/* Enter here for CHAR IN; A = unit */
 	DAD	D
 	MOV	A,M
 	JMP	$GC2
-$GC1:	CALL	BDOS		/* Otherwise, get char the regular way. */
+$GC1:	MVI	E,-1		/* Otherwise, get char the regular way. */
+	CALL	BDOS		/* (put FF in E in case it's fn 6) */
 $GC2:	POP	B
 	CPI	EOL		/* If char is CR */
 	JNZ	$B8P
@@ -425,8 +435,8 @@ $GC2:	POP	B
 	MVI	E,10		/* echo LF */
 	MVI	C,SCOUT
 	CALL	BDOS
-$B8M:	MVI	A,10		/* Return LF. */
-	JMP	c.sxt
+$B8M:	LXI	H,10		/* Return LF. */
+	RET
 $B8P:	DCR	C		/* If fn is SCIN = 1, */
 	JNZ	$B8G
 	CPI	2		/* Check for ctl-b */
@@ -438,11 +448,13 @@ $B8:	DB	255,SCIN
 	CPI	4		/* ctl-d? */
 #endif
 	JZ	$B9
-	JMP	c.sxt
+	MOV	L,A		/* Return the char (12/83) */
+	MVI	H,0
+	RET
 
 /* Check for ^d = EOF; clear buffer because line count messes up */
 
-#ifdef CPM
+#ifndef HDOS
 $B9:	DS 0
 #else
 $B9:	DB	255,CLRCO
@@ -466,7 +478,7 @@ putchar(c) char c; {
 	POP	B
 	POP	B
 	RET
-#ifdef CPM
+#ifndef HDOS
 $B7:	XCHG
 	MVI	A,PUNIT
 $PCH:	PUSH	H		/* Char out; A = unit, HL = char */
@@ -494,7 +506,7 @@ $B7:	PUSH	D
 	POP	H
 	RET
 
-#ifdef CPM
+#ifndef HDOS
 	/* Check for physical unit - return carry if no good */
 	/* Call with IOpread or IOpwrit in HL, log unit in A */
 	/* Return sys call in C, HL points to it in table. */
@@ -518,17 +530,18 @@ $PU1:	STC			/* error ret */
 #endasm
 }
 
-/* io storage */
+/* io storage (initialize to force to DSEG because of M80 bug) */
 int  IObuf[7] {0,0,0,0,0,0,0};	/* Start of buffer for file */
 int  IOsect[7] {0,0,0,0,0,0,0}; /* Current sector, for seek */
 char IOrw[7] {0,0,0,0,0,0,0};	/* # sectors read on last op on chan */
-char *IOtmp;			/* Holds buffer start within routines */
+char *IOtmp = 0;		/* Holds buffer start within routines */
 char IOch[7] {-1,-1,-1,-1,-1,-1,-1}; /* Channel for open files */
-int  IOind[7];			/* Index of next character in current rec */
-char IOmode[7]; 		/* Mode in which opened */
-char IObin[7];			/* Binary? */
+int  IOind[7]={0,0,0,0,0,0,0};	/* Index of next character in current rec */
+char IOmode[7]={0,0,0,0,0,0,0}; /* Mode in which opened */
+char IObin[7]={0,0,0,0,0,0,0};	/* Binary? */
+char IOseek[7]={0,0,0,0,0,0,0}; /* If seek performed on file */
 
-#ifdef CPM
+#ifndef HDOS
 int  IOfcb[7] {0,0,0,0,0,0,0};	/* FCB addresses for files.  In CP/M, */
 				/*  channel is index into this array. */
 char IOnch[7] {0,0,0,0,0,0,0};	/* Nr chars in buffer: 0 or 128 */
@@ -546,7 +559,7 @@ char *sname,*mode;
 /*	char i;
 	char scall;	*/
 #asm
-#ifdef CPM
+#ifndef HDOS
    /* For CP/M, check if device is any of the logical hardware devices */
 	POP	B
 	POP	H
@@ -610,7 +623,7 @@ O2$:	POP	B
 
    /*	IOmode[i] = *mode++;
 	IObin[i] = *mode;
-	IOrw[i] = 0;	       */
+	IOseek[i] = IOrw[i] = 0;	   */
 
 	MOV	A,M
 	INX	H
@@ -619,13 +632,16 @@ O2$:	POP	B
 	LXI	D,IOrw-IOch
 	DAD	D
 	MVI	M,0
-	LXI	D,IObin-IOrw
+	LXI	D,IOseek-IOrw
+	DAD	D
+	MVI	M,0
+	LXI	D,IObin-IOseek
 	DAD	D
 	MOV	M,B
 	LXI	D,IOmode-IObin
 	DAD	D
 	MOV	M,A
-#ifdef CPM
+#ifndef HDOS
 #define IOguy IOnch
 	LXI	D,IOnch-IOmode	/* CP/M - set chars in buffer to 0 (= 256) */
 	DAD	D
@@ -653,7 +669,7 @@ O4$:	MOV	A,C
 	PUSH	B
 	MOV	A,C
 	DCR	A
-#ifdef CPM			/* Note that O6$+1 gets plugged in either OS */
+#ifndef HDOS			/* Note that O6$+1 gets plugged in either OS */
 	PUSH	H			/* Save file name */
 	CALL	.CPC		/* Get FCB from "channel" */
 	POP	H
@@ -693,16 +709,25 @@ O6$:	DB	255,0
 	LXI	B,IOind-IOch
 	DAD	B
 	DAD	D
-	MVI	M,0
+	XRA	A
+	MOV	M,A
 	INX	H
 	MVI	M,1
 
+  /*	IOsect[i] = 256;	/* Clear sector count */
+
+	LXI	B,IOsect-IOind
+	DAD	B
+	MOV	M,A
+	DCX	H
+	MOV	M,A
+
   /* See if buffer already allocated */
 
-	LXI	B,IObuf-IOind
+	LXI	B,IObuf-IOsect
 	DAD	B
 	MOV	A,M
-	DCX	H
+	INX	H
 	ORA	M
 	JNZ	O8$
 
@@ -716,9 +741,9 @@ O6$:	DB	255,0
 	POP	B
 	XCHG
 	POP	H
-	MOV	M,E
-	INX	H
 	MOV	M,D
+	DCX	H
+	MOV	M,E
 
   /* Return NULL if sbrk returned -1 */
 
@@ -735,7 +760,7 @@ O8$:	XCHG
 #endasm
 }
 
-#ifndef CPM
+#ifdef HDOS
 #asm
 O7$:	DB	'SY0'
 	DB	0,0,0
@@ -752,7 +777,7 @@ int unit;
 	POP	D
 	PUSH	D
 	PUSH	B
-#ifdef CPM
+#ifndef HDOS
 	MOV	A,E				/* Check if physical unit */
 	CPI	PUNIT
 	JC	F$1
@@ -769,14 +794,7 @@ int unit;
 	LXI	H,0
 	RET			/* and return */
 #endif
-F$1:	LXI	H,IOsect			/* Zero IOsect entry */
-	DAD	D
-	DAD	D
-	XRA	A
-	MOV	M,A
-	INX	H
-	MOV	M,A
-	LXI	H,IOch
+F$1:	LXI	H,IOch
 	DAD	D
 	MOV	A,M
 	INR	A
@@ -801,7 +819,7 @@ F$1:	LXI	H,IOsect			/* Zero IOsect entry */
 	ORA	A
 	JZ	F3$
 	XCHG
-#ifdef CPM
+#ifndef HDOS
 	PUSH	PSW	/* CP/M - save whether >= 128 bytes */
 #endif
 	LHLD	IOtmp
@@ -809,7 +827,7 @@ F$1:	LXI	H,IOsect			/* Zero IOsect entry */
 	CPI	'b'
 	JZ	F5$
 	DAD	D	 /*	       while (i & 255) IObuf[i++] = 0;	  */
-#ifdef CPM
+#ifndef HDOS
 	MVI	A,EOF		/* Fill last record with ctrl-Z for CP/M */
 #else
 	XRA	A			/* Fill with 0 for HDOS */
@@ -819,7 +837,7 @@ F4$:	MOV	M,A
 	INR	E
 	JNZ	F4$
 	DCR	H  /*		write(unit,&IObuf[i-256],256); /* dump buffer */
-#ifdef CPM
+#ifndef HDOS
 F5$:	POP	PSW		/* CP/M - might want to write 128 */
 	PUSH	H
 	LXI	H,128
@@ -831,7 +849,8 @@ F5$:	PUSH	H
 	LXI	H,256
 #endif
 F5A$:	PUSH	H
-	CALL	write
+__CL2	EQU	$+1
+	CALL	write		/* This location may be modified by seek */
 	POP	B
 	POP	B
 F3$:	POP	D
@@ -841,7 +860,7 @@ F3$:	POP	D
 F2$:	MOV	A,E
 	DCR	A
 	PUSH	D
-#ifdef CPM
+#ifndef HDOS
 	CALL	.CPC
 	MVI	C,CLOSE
 	CALL	BDOS
@@ -883,7 +902,7 @@ int unit;
 .G3:	CALL	.GPC	
 	ORA	A	/* If unit 0 */
 	JZ	$B8	/* Read from console */
-#ifdef CPM
+#ifndef HDOS
 	CPI	PUNIT	/* Check if phys device */
 	JNC	$GCH
 #endif
@@ -901,7 +920,7 @@ int unit;
 	POP	B
 	POP	B
 	POP	D
-#ifdef CPM
+#ifndef HDOS
 	PUSH	D
 	XCHG	/* Store amount read in IOnch[unit] */
 	LXI	B,IOnch
@@ -940,7 +959,7 @@ int unit;
 	CMP	M
 	JZ	.G2
 	MOV	A,B
-#ifdef CPM
+#ifndef HDOS
 	CPI	EOL	/* In CP/M, ignore CRs */
 	JZ	.G3
 	CPI	EOF	/* and return EOF for ctrl-Z */
@@ -969,12 +988,12 @@ int unit;
 	MOV	A,E	/* Return if unit 0 */
 	ORA	A
 	RZ
-#ifdef CPM
+#ifndef HDOS
 	CPI	PUNIT	/* Check if phys channel */
 	RNC
 #endif
 	CALL	TM$
-#ifdef CPM
+#ifndef HDOS
 	LXI	H,IOnch /* Get nr chars in buffer */
 	DAD	D
 	MOV	A,M
@@ -992,7 +1011,7 @@ int unit;
 	RNZ
 	MVI	B,0
 	MOV	M,B
-#ifdef CPM
+#ifndef HDOS
 	DCX	H	/* On CP/M, C might be 00 or 80.  HDOS: only 00 */
 	MOV	M,B
 	MOV	C,B
@@ -1017,7 +1036,7 @@ char c; int unit;
 	PUSH	B
 	JMP	$B7	/* Go output it */
 PC.8:	DS	0
-#ifdef CPM
+#ifndef HDOS
 	CPI	PUNIT	/* Check if phys device */
 	JC	PC.9
 	POP	B		/* Get char in HL */
@@ -1036,7 +1055,7 @@ PC.9:	DCX	H
 	LXI	H,6
 	DAD	SP
 	MOV	A,M
-#ifdef CPM
+#ifndef HDOS
 	CPI	LF		/* LF on non-bin file? */
 	JNZ	PC.1
 	PUSH	H
@@ -1087,7 +1106,8 @@ PC.1:	LHLD	IOtmp
 	PUSH	H
 	LXI	H,256
 	PUSH	H
-.PC2:	CALL	write		/* This location may be modified by seek */
+__PC2	EQU	$+1
+	CALL	write		/* This location may be modified by seek */
 	POP	B
 	POP	B
 	POP	B
@@ -1103,7 +1123,7 @@ PC.1:	LHLD	IOtmp
 	DAD	SP
 	MOV	L,M
 	MVI	H,0
-#ifdef CPM
+#ifndef HDOS
 	LDA	C.LFD
 	ORA	A
 	JZ	putc	/* If output CR, follow with LF */
@@ -1120,7 +1140,7 @@ int count;
 #asm
 	XRA	A		/* Remember whether write */
 	STA	RD.RW
-#ifdef CPM
+#ifndef HDOS
 	MVI	A,WRITE
 	JMP	RD.0
 RD.T:	DS	1
@@ -1138,7 +1158,7 @@ $RW.2:	PUSH	H		/* Increment sector count */
 	XCHG
 	POP	H
 	PUSH	H		/* Retrieve sectors read/written */
-#ifdef CPM
+#ifndef HDOS
 	DAD	H		/* (CP/M - Multiple of 128 bytes) */
 #endif
 	LDA	RD.RW
@@ -1169,7 +1189,7 @@ int count;
 #asm
 	MVI	A,-1
 	STA	RD.RW
-#ifdef CPM
+#ifndef HDOS
 	MVI	A,READ
 RD.0:	STA	RD.T
 	LDA	Cmode	/* If not in raw mode, give ^c a shot */
@@ -1255,7 +1275,7 @@ $RW.:	LXI	H,8
 	MOV	A,M
 	DCR	A
 	DCX	H
-#ifdef CPM
+#ifndef HDOS
 	PUSH	H		/* Save address */
 	CALL	.CPC		/* Get FCB in DE */
 	POP	H
@@ -1268,13 +1288,13 @@ $RW.:	LXI	H,8
 	MOV	B,M
 	DCX	H
 	MOV	C,M
-#ifdef CPM
+#ifndef HDOS
 	POP	H		/* Restore FCB */
 	XCHG
 #endif
 	RET
 
-#ifdef CPM
+#ifndef HDOS
 /* CP/M name->FCB routine.  Call with file name address in DE, FCB IN HL. */
 
 x_fcb:	LXI	B,11	/* Erase the name area with blanks. */
@@ -1307,7 +1327,7 @@ nam.1:	MOV	M,A
 	MOV	A,M	/* YES - GET DRIVE. */
 	INX	H
 	INX	H		/* STEP PAST DRIVE: */
-	CALL	NAM.U
+	CALL	NAM@U
 	SUI	'A'-1
 	STAX	D
 nam.2:	INX	D		/* GET NAME*/
@@ -1317,7 +1337,7 @@ nam.2:	INX	D		/* GET NAME*/
 	RZ	/* YES - RETURN. */
 	CPI	'.'	 /* START TYPE? */
 	JZ	nam.3
-	CALL	NAM.U	/* NO. STORE CHAR. */
+	CALL	NAM@U	/* NO. STORE CHAR. */
 	STAX	D
 	JMP	nam.2
 nam.3:	XCHG		/* START TYPE */
@@ -1327,13 +1347,13 @@ nam.3:	XCHG		/* START TYPE */
 nam.4:	LDAX	D
 	ORA	A		/* DONE? */
 	RZ	/* RETURN. */
-	CALL	NAM.U
+	CALL	NAM@U
 	MOV	M,A
 	INX	D
 	INX	H
 	JMP	nam.4
 .XTMP:	DS 2
-NAM.U:	ANI	177Q	/* CAPITALIZE (A). */
+NAM@U:	ANI	177Q	/* CAPITALIZE (A). */
 	CPI	'a'
 	RM
 	SUI	'a'-'A'
@@ -1367,24 +1387,25 @@ NAM.U:	ANI	177Q	/* CAPITALIZE (A). */
 	RET
 #endif
 
-#ifdef MAC
-$END:	DS	0
+#ifndef NOMAC
+$END:	DS	0	/* End of library (code segment) */
+#endasm
+}
+char Q8QENDD;		/* End of library (data segment) */
+#asm
 	END	$INIT
 #endasm
+
 #else
 
 #endasm
-#include "clibmath.c"
-#endif
-
 }
-m */
-	INX	H
-	INR	M		/* Inc count */
-	MOV	C,M
-	MVI	B,0
-	DAD	B
-	MOV	M,E		/* Store char */
-	MVI	A,LF
-	CMP	E
-	MV
+#include "clibmath.c"
+
+#endif
+
+	JNZ	$B8P
+	DCR	C		/* If fn is SCIN = 1 */
+	JNZ	$B8M
+	MVI	E,10		/* echo LF */
+	MVI	C,SCOUT

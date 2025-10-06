@@ -4,14 +4,15 @@
  * sprintf added J. J. Gillogly, Jul 80
  * Modified Jan 82 to work with #define kludge for multiple printf args
  * %u and unsigned octal and hex added WB Feb 82
+ * Fix for I/O redirection; John Toscano 4/17/84.
  */
 
 #undef printf
 #undef fprintf
 #undef sprintf
-static int *prnt_p;	/* Pointer into printf arglist */
+static int *prnt_p,	/* Pointer into printf arglist */
+	    Pfo;	/* Channel number for output */
 static char *Pf = "",	/* current location in user's format */
-	    Pfo,	/* Channel number for output */
 	    *Pst;	/* current location in user's output string */
 static int Pr; /* precision */
 static char Pad;
@@ -44,11 +45,12 @@ prnt_4(lastarg) {
 
 format(form)
 char *form;
-{	fformat(0,form);
+{	extern fout;
+	fformat(fout,form);
 }
 
 fformat(chan,form)
-char chan,*form;
+int chan; char *form;
 {	Pfo = chan;
 	Pf = form;
 	Ps();
@@ -67,13 +69,11 @@ Ps()	/* output format up to next % */
 
 Pc(c)
 char c;
-{	switch(Pfo)
-	{   case 0: putchar(c); break;
-	    case -2: *Pst++ = c;
-		     *Pst = 0;	/* terminate each intermediate string */
-		     break;
-	    default: putc(c,Pfo); break;
-	}
+{	if (Pfo == -2) {
+		*Pst++ = c;
+		*Pst = 0;  /* terminate each intermediate string */
+		return; }
+	putc(c,Pfo);
 }
 
 printf(arg)	/* print one arg using current format */
@@ -126,4 +126,4 @@ register unsigned num;
 #define printf prnt_1(),prnt_2
 #define fprintf prnt_1(),prnt_3
 #define sprintf prnt_1(),prnt_4
-
+

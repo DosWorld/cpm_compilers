@@ -33,9 +33,139 @@
 
 #define ttype int
 
+/* Function Pointers are the fastest implementation for almost every compiler */
+#define UseFunPointers    1
+#define UseWinner2        0   
+#define UseLookForWinner  0
+
 ttype g_board[ 9 ];
 int g_Iterations;
 int g_Moves;
+
+#if UseFunPointers
+
+ttype pos0func()
+{
+    /* using "register int" instead of "ttype" for x is faster on 8086 and Z80 */
+    register int x;
+    x = g_board[0];
+    
+    if ( ( x == g_board[1] && x == g_board[2] ) ||
+         ( x == g_board[3] && x == g_board[6] ) ||
+         ( x == g_board[4] && x == g_board[8] ) )
+        return x;
+    return PieceBlank;
+}
+
+ttype pos1func()
+{
+    register int x;
+    x = g_board[1];
+    
+    if ( ( x == g_board[0] && x == g_board[2] ) ||
+         ( x == g_board[4] && x == g_board[7] ) )
+        return x;
+    return PieceBlank;
+} 
+
+ttype pos2func()
+{
+    register int x;
+    x = g_board[2];
+    
+    if ( ( x == g_board[0] && x == g_board[1] ) ||
+         ( x == g_board[5] && x == g_board[8] ) ||
+         ( x == g_board[4] && x == g_board[6] ) )
+        return x;
+    return PieceBlank;
+} 
+
+ttype pos3func()
+{
+    register int x;
+    x = g_board[3];
+    
+    if ( ( x == g_board[4] && x == g_board[5] ) ||
+         ( x == g_board[0] && x == g_board[6] ) )
+        return x;
+    return PieceBlank;
+} 
+
+ttype pos4func()
+{
+    register int x;
+    x = g_board[4];
+    
+    if ( ( x == g_board[0] && x == g_board[8] ) ||
+         ( x == g_board[2] && x == g_board[6] ) ||
+         ( x == g_board[1] && x == g_board[7] ) ||
+         ( x == g_board[3] && x == g_board[5] ) )
+        return x;
+    return PieceBlank;
+} 
+
+ttype pos5func()
+{
+    register int x;
+    x = g_board[5];
+    
+    if ( ( x == g_board[3] && x == g_board[4] ) ||
+         ( x == g_board[2] && x == g_board[8] ) )
+        return x;
+    return PieceBlank;
+} 
+
+ttype pos6func()
+{
+    register int x;
+    x = g_board[6];
+    
+    if ( ( x == g_board[7] && x == g_board[8] ) ||
+         ( x == g_board[0] && x == g_board[3] ) ||
+         ( x == g_board[4] && x == g_board[2] ) )
+        return x;
+    return PieceBlank;
+} 
+
+ttype pos7func()
+{
+    register int x;
+    x = g_board[7];
+    
+    if ( ( x == g_board[6] && x == g_board[8] ) ||
+         ( x == g_board[1] && x == g_board[4] ) )
+        return x;
+    return PieceBlank;
+} 
+
+ttype pos8func()
+{
+    register int x;
+    x = g_board[8];
+    
+    if ( ( x == g_board[6] && x == g_board[7] ) ||
+         ( x == g_board[2] && x == g_board[5] ) ||
+         ( x == g_board[0] && x == g_board[4] ) )
+        return x;
+    return PieceBlank;
+} 
+
+int * winner_functions[9] =
+{
+    pos0func,
+    pos1func,
+    pos2func,
+    pos3func,
+    pos4func,
+    pos5func,
+    pos6func,
+    pos7func,
+    pos8func,
+};
+
+#endif
+
+#if UseWinner2
 
 ttype winner2( move ) ttype move;
 {
@@ -126,6 +256,10 @@ ttype winner2( move ) ttype move;
     return PieceBlank;
 } /*winner2*/
 
+#endif
+
+#if UseLookForWinner
+
 ttype LookForWinner()
 {
     int p;
@@ -168,19 +302,30 @@ ttype LookForWinner()
     return PieceBlank;
 } /*LookForWinner*/
 
+#endif
+
 ttype MinMax( alpha, beta, depth, move ) ttype alpha; ttype beta; ttype depth; ttype move;
 {
     ttype pieceMove, score;   /* better perf with char than int. out of registers so use stack */
     int p, value;    /* better perf with these as an int on Z80, 8080, and 8086 */
+#if UseFunPointers
+    int (*chk)();
+#endif
 
     g_Moves++;
 
     if ( depth >= 4 )
     {
+#if UseFunPointers
+        chk = winner_functions[ move ];
+        p = (*chk)(move);
+#endif
+#if UseWinner2
         p = winner2( move );
-/*
+#endif
+#if UseLookForWinner
         p = LookForWinner();
-*/
+#endif
 
         if ( PieceBlank != p )
         {

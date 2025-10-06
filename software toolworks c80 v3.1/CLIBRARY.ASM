@@ -1,27 +1,27 @@
-; CLIBRARY.ASM 3.0 (9/6/83) - (c) 1982, 1983 Walter Bilofsky
+; CLIBRARY.ASM 3.0 (2/2/84) - (c) 1982, 1983, 1984 Walter Bilofsky
 ; Multiply and divide routines (c)1981 UltiMeth Corp. Permission is gran-
 ; ted to reproduce them without charge, provided this notice is included.
-        ORG     256
-C_lib:  DS      0
-CP_M    EQU     1
-$AS     EQU     $+2
-$AG     EQU     $
-$INIT:  DW      0
-        LHLD    6
-        DCX     H
-        DCR     H
-        SHLD    IObuf+6
-        DCR     H
-        SHLD    IObuf+4
-        DCR     H
-        SHLD    IObuf+2
-        LXI     B,-36
-        DAD     B
-        SHLD    IOfcb+4
-        DAD     B
-        SHLD    IOfcb+2
-        DAD     B
-        SHLD    IOfcb
+	ORG	256
+C_lib:	DS	0
+CP_M	EQU	1
+$AS	EQU	$+2
+$AG	EQU	$
+$INIT:	DW	0
+	LHLD	6
+	DCX	H
+	DCR	H
+	SHLD	IObuf+6
+	DCR	H
+	SHLD	IObuf+4
+	DCR	H
+	SHLD	IObuf+2
+	LXI	B,-36
+	DAD	B
+	SHLD	IOfcb+4
+	DAD	B
+	SHLD	IOfcb+2
+	DAD	B
+	SHLD	IOfcb
 	LXI	B,-135
 	DAD	B
 	MVI	M,0
@@ -30,7 +30,7 @@ $INIT:  DW      0
 	MVI	M,132
 	DCX	H
 	SPHL
-	LXI	H,128
+$A81:	LXI	H,128
 	MOV	E,M
 	MVI	M,' '
 	MVI	D,0
@@ -243,7 +243,8 @@ $GCH:	LXI	H,IOpread
 	DAD	D
 	MOV	A,M
 	JMP	$GC2
-$GC1:	CALL	5
+$GC1:	MVI	E,-1
+	CALL	5
 $GC2:	POP	B
 	CPI	13
 	JNZ	$B8P
@@ -252,15 +253,17 @@ $GC2:	POP	B
 	MVI	E,10
 	MVI	C,2
 	CALL	5
-$B8M:	MVI	A,10
-	JMP	c.sxt
+$B8M:	LXI	H,10
+	RET
 $B8P:	DCR	C
 	JNZ	$B8G
 	CPI	2
 	JZ	$B8Z
 $B8G:	CPI	26
 	JZ	$B9
-	JMP	c.sxt
+	MOV	L,A
+	MVI	H,0
+	RET
 $B9:	DS 0
 $RM:	LXI	H,-1
 	RET
@@ -321,6 +324,7 @@ IOch:	DB	-1,-1,-1,-1,-1,-1,-1
 IOind:	DW	0,0,0,0,0,0,0
 IOmode:	DB	0,0,0,0,0,0,0
 IObin:	DB	0,0,0,0,0,0,0
+IOseek:	DB	0,0,0,0,0,0,0
 IOfcb:	DW	0,0,0,0,0,0,0
 IOnch:	DB	0,0,0,0,0,0,0
 IOpchan:	DB	32,33,34,35
@@ -381,7 +385,10 @@ O2$:	POP	B
 	LXI	D,IOrw-IOch
 	DAD	D
 	MVI	M,0
-	LXI	D,IObin-IOrw
+	LXI	D,IOseek-IOrw
+	DAD	D
+	MVI	M,0
+	LXI	D,IObin-IOseek
 	DAD	D
 	MOV	M,B
 	LXI	D,IOmode-IObin
@@ -429,13 +436,19 @@ O6$B:	POP	D
 	LXI	B,IOind-IOch
 	DAD	B
 	DAD	D
-	MVI	M,0
+	XRA	A
+	MOV	M,A
 	INX	H
 	MVI	M,1
-	LXI	B,IObuf-IOind
+	LXI	B,IOsect-IOind
+	DAD	B
+	MOV	M,A
+	DCX	H
+	MOV	M,A
+	LXI	B,IObuf-IOsect
 	DAD	B
 	MOV	A,M
-	DCX	H
+	INX	H
 	ORA	M
 	JNZ	O8$
 	PUSH	D
@@ -477,14 +490,7 @@ fclose:	DS	0
 	CNZ	5
 	LXI	H,0
 	RET
-F$1:	LXI	H,IOsect
-	DAD	D
-	DAD	D
-	XRA	A
-	MOV	M,A
-	INX	H
-	MOV	M,A
-	LXI	H,IOch
+F$1:	LXI	H,IOch
 	DAD	D
 	MOV	A,M
 	INR	A
@@ -527,6 +533,7 @@ F5$:	POP	PSW
 	JP	F5A$
 	DAD	H
 F5A$:	PUSH	H
+__CL2	EQU	$+1
 	CALL	write
 	POP	B
 	POP	B
@@ -709,7 +716,8 @@ PC.1:	LHLD	IOtmp
 	PUSH	H
 	LXI	H,256
 	PUSH	H
-.PC2:	CALL	write
+__PC2	EQU	$+1
+	CALL	write
 	POP	B
 	POP	B
 	POP	B
@@ -867,56 +875,56 @@ nam.1:	MOV	M,A
 	MOV	A,M
 	INX	H
 	INX	H
-        CALL    NAM@U
-        SUI     'A'-1
-        STAX    D
-nam.2:  INX     D
-        MOV     A,M
-        INX     H
-        ORA     A
-        RZ
-        CPI     '.'
-        JZ      nam.3
-        CALL    NAM@U
-        STAX    D
-        JMP     nam.2
-nam.3:  XCHG
-        LHLD    .XTMP
-        DCX     H
-        DCX     H
-nam.4:  LDAX    D
-        ORA     A
-        RZ
-        CALL    NAM@U
-        MOV     M,A
-        INX     D
-        INX     H
-        JMP     nam.4
-.XTMP:  DS 2
-NAM@U:  ANI     177Q
-        CPI     'a'
-        RM
-        SUI     'a'-'A'
-        RET
-.CPC:   MOV     C,A
-        MVI     B,0
-        LXI     H,IOfcb
-        DAD     B
-        DAD     B
-        MOV     A,M
-        MOV     E,A
-        INX     H
-        MOV     D,M
-        ORA     D
-        RNZ
-        PUSH    H
-        LXI     H,36
-        PUSH    H
-        CALL    sbrk
-        XCHG
-        POP     H
-        POP     H
-        MOV     M,D
+	CALL	NAM@U
+	SUI	'A'-1
+	STAX	D
+nam.2:	INX	D
+	MOV	A,M
+	INX	H
+	ORA	A
+	RZ
+	CPI	'.'
+	JZ	nam.3
+	CALL	NAM@U
+	STAX	D
+	JMP	nam.2
+nam.3:	XCHG
+	LHLD	.XTMP
+	DCX	H
+	DCX	H
+nam.4:	LDAX	D
+	ORA	A
+	RZ
+	CALL	NAM@U
+	MOV	M,A
+	INX	D
+	INX	H
+	JMP	nam.4
+.XTMP:	DS 2
+NAM@U:	ANI	177Q
+	CPI	'a'
+	RM
+	SUI	'a'-'A'
+	RET
+.CPC:	MOV	C,A
+	MVI	B,0
+	LXI	H,IOfcb
+	DAD	B
+	DAD	B
+	MOV	A,M
+	MOV	E,A
+	INX	H
+	MOV	D,M
+	ORA	D
+	RNZ
+	PUSH	H
+	LXI	H,36
+	PUSH	H
+	CALL	sbrk
+	XCHG
+	POP	H
+	POP	H
+	MOV	M,D
 	DCX	H
 	MOV	M,E
 	MOV	H,D
@@ -1093,6 +1101,7 @@ c.sxt:	MOV	L,A
 	SBB	A
 	MOV	H,A
 	RET
+h@:	DS	0
 h.:	MOV	A,M
 	INX	H
 	MOV	H,M
@@ -1195,4 +1204,4 @@ c.d1:	CP	c.neg
 	XCHG
 	JMP	c.neg
 	RET
-                                                                                      
+

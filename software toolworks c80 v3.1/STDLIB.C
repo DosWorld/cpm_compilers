@@ -18,39 +18,39 @@
    free(p)	Frees up memory at p.  P must have been value returned by alloc.
    getline(s,i) Reads a line from console into s, stopping at newline or i char-
 		acters.  0-terminates string; returns length including 0 byte.
-   index(s,t)	Returns position in string s of string t, or -1 if not there.
-   isalpha(c)	Returns 1 if c is an alphabetic character A-Z or a-z.
-   isdigit(c)	Returns 1 if c is an ASCII digit 0-9.
-   islower(c)	Returns 1 if c is a lower case character a-z.
-   isspace(c)	Returns 1 if c is a blank, tab or newline.
-   isupper(c)	Returns 1 if c is an upper case character A-Z.
+   index(s,t)	Position in string s of string t, or -1 if not there.
+   isalpha(c)	1 if c is an alphabetic character A-Z or a-z.
+   isdigit(c)	1 if c is an ASCII digit 0-9.
+   islower(c)	1 if c is a lower case character a-z.
+   isspace(c)	1 if c is a blank, tab or newline.
+   isupper(c)	1 if c is an upper case character A-Z.
    itoa(i,s)	Converts i to an ASCII string in char s[7]; returns s.
    makfcb(s,fcb) Unpack file name s into char fcb[36] to make a CP/M fcb.
-   max(i,j)	Returns the greater of i and j.
-   min(i,j)	Returns the lesser of i and j.
+   max(i,j)	The greater of i and j.
+   min(i,j)	The lesser of i and j.
    rename(s,t)	Renames the file named s to be called t.  Returns -1 for
 		failure, a non-negative number for success.
    strcat(s,t)	Appends t to s.  No checking for overflow of s.
-   strcmp(s,t)	Returns -1, 0 or 1 if s < t, s == t, s > t respectively.
+   strcmp(s,t)	-1, 0 or 1 if s < t, s == t, s > t respectively.
    strcpy(s,t)	Copies t into s.  No checking for overflow of s.
-   strlen(s)	Returns the number of bytes in s, exclusive of the 0 byte.
+   strlen(s)	The number of bytes in s, exclusive of the 0 byte.
 		(Note: it takes strlen(s)+1 bytes to hold s.)
-   tolower(c)	Returns c, but if upper case it is converted to lower case.
-   toupper(c)	Returns c, but if lower case it is converted to upper case.
+   tolower(c)	c, but if upper case it is converted to lower case.
+   toupper(c)	c, but if lower case it is converted to upper case.
    unlink(s)	Deletes the file s, if it exists.
 
    None of these routines calls any other functions, except that the file
    routines call bdos and makfcb. */
 
-/***********/
+/*	*	*/
 
-#ifneed abs,ABS
+#ifneed abs
 abs(i) { return i < 0 ? -i : i; }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed alloc,free,ALLOC,FREE
+#ifneed alloc,free
 /* alloc and free - (c) 1983 Walt Bilofsky.
 
   Usage: alloc(n) returns pointer to n bytes of memory. 
@@ -105,10 +105,10 @@ free(q) char *q; {
 	}
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed atoi,ATOI
-atoi(s)        /* convert string to integer, with optional leading spaces */
+#ifneed atoi
+atoi(s)        /* convert string to integer */
 char *s;
 {
 	static int n, sign;
@@ -123,9 +123,9 @@ char *s;
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed getline,GETLINE
+#ifneed getline
 /* getline - get a string from the console.  Returns length of the string,
 	0 terminated, without the newline at the end. */
 getline(s,lim)
@@ -138,9 +138,9 @@ char *s;
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed index,INDEX
+#ifneed index
 index(s,t)	/* find string t in s, return index, or -1 if fail*/
 char s[], t[];
 {
@@ -155,9 +155,9 @@ char s[], t[];
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed isalpha,ISALPHA
+#ifneed isalpha
 /* isalpha  -  is the input in [A..Z, a..z] ?
 */
 isalpha(c) {
@@ -181,9 +181,9 @@ isalpha(c) {
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed isdigit,ISDIGIT
+#ifneed isdigit
 /* isdigit  -  is the input in [0..9] ?
 */
 isdigit(c) {
@@ -202,9 +202,9 @@ isdigit(c) {
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed islower,ISLOWER
+#ifneed islower
 /* islower  -  is the input in [a..z] ?
 */
 islower(c) {
@@ -223,9 +223,9 @@ islower(c) {
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed isspace,ISSPACE
+#ifneed isspace
 /* isspace  -  is the input blank ?
 */
 isspace(c)
@@ -235,9 +235,9 @@ isspace(c)
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed isupper,ISUPPER
+#ifneed isupper
 /* isupper  -  is the input in [A..Z] ?
 */
 isupper(c) {
@@ -256,9 +256,9 @@ isupper(c) {
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed itoa,ITOA
+#ifneed itoa
 /* itoa - convert n to characters in s. */
 char *itoa(n, s)
 char s[];
@@ -267,36 +267,35 @@ int n;
 	static int c, k;
 	static char *p, *q;
 
-	if ((k = n) < 0)	/* record sign */
-		n = -n; 	/* make n positive */
+	if ((k = n) < 0)
+		k = -k;
 	q = p = s;
-	do {		/* generate digits in reverse order */
-		*p++ = n % 10 + '0';  /* get next digit */
-	} while ((n /= 10) > 0);	/* delete it */
-	if (k < 0) *p++ = '-';
+	do {
+		*p++ = k % 10 + '0';
+	} while (k /= 10);
+	if (n < 0) *p++ = '-';
 	*p = 0;
-/* reverse string in place */
-	while (q > --p) {
-		c = *q; *q++ = *p; p = c; }
+	while (q < --p) {
+		c = *q; *q++ = *p; *p = c; }
 	return (s);
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed min,MIN
+#ifneed min
 min(i,j) { return i < j ? i : j; }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed max,MAX
+#ifneed max
 max(i,j) { return i > j ? i : j; }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed rename,RENAME
+#ifneed rename
 /* rename - rename oldfile to be newfile  */
 
 rename(old,new)
@@ -311,9 +310,9 @@ char *old,*new;
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed strcat,STRCAT
+#ifneed strcat
 /* Copy 0-terminated string tt onto end of 0-terminated string ss */
 strcat(ss,tt)
 char ss[], tt[];
@@ -323,16 +322,16 @@ char ss[], tt[];
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed strcmp,STRCMP
+#ifneed strcmp
 strcmp(str1, str2)
 char *str1, *str2;
 {
 #asm
 	POP	B	; return address
-	POP	H	; get first string
-	POP	D	; get second string
+	POP	H	; get first string (str2)
+	POP	D	; get second string (str1)
 	PUSH	D	; restore stack for caller
 	PUSH	H
 	PUSH	B
@@ -340,7 +339,7 @@ SCLOOP: LDAX	D	; get next byte from second string
 	CMP	M	; compare that with first string
 	JNZ	SCDIFF	; they didn't compare
 	INX	D	; increment both pointers
-	INX	H	; extra increment last time, but saves compare each time
+	INX	H
 	ORA	A	; both the same.  see if both zero
 	JNZ	SCLOOP	; nope.  get the next ones
 	LXI	H,0	; yup.	they matched all the way to the null
@@ -353,9 +352,9 @@ SCRET:	DS	0	; unified return
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed strcpy,STRCPY
+#ifneed strcpy
 strcpy(to, from)
 char *to, *from;
 {
@@ -377,9 +376,9 @@ STLOOP: INX	H	; point at next FROM char
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed strlen,STRLEN
+#ifneed strlen
 strlen(string)
 char *string;
 {
@@ -400,9 +399,9 @@ SLDONE: DS	0	; fall through for timer
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed tolower,TOLOWER
+#ifneed tolower
 /* tolower  -  if the input is in [A..Z], convert to lower case
 */
 tolower(c) {
@@ -425,9 +424,9 @@ tolower(c) {
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed toupper,TOUPPER
+#ifneed toupper
 /* toupper - Convert character to upper case if in [a..z].  */
 toupper(c) {
 /*	if ('a' <= c && c <= 'z')
@@ -449,9 +448,9 @@ toupper(c) {
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed unlink,UNLINK
+#ifneed unlink
 /* unlink - remove (erase) a file from the file directory  */
 
 unlink(name)
@@ -465,9 +464,9 @@ char *name[];
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed makfcb,MAKFCB
+#ifneed makfcb
 /* makfcb(file,fcb) - unpack filename into char fcb[36]. */
 makfcb(file,fcb) {
 #asm
@@ -482,9 +481,9 @@ makfcb(file,fcb) {
 }
 #endif
 
-/***********/
+/*	*	*/
 
-#ifneed bdos,BDOS
+#ifneed bdos
 /* bdos(c,de) - call bdos with given values of c and de.
 		return value from register a */
 bdos() {
@@ -497,11 +496,18 @@ bdos() {
 	PUSH H
 	CALL 5		; Call BDOS.
 	MOV L,A 	; Return value from A.
-	MVI H,0
-	ORA A		; Extend sign of value.
-	RP
-	DCR H
+	RLC
+	SBB A		; Extend sign of value.
+	MOV H,A
 #endasm
 }
 #endif
-can ov
+*/
+bdos() {
+#asm
+	POP H
+	POP D		; Get arguments into d
+	POP B		; and b.
+	PUSH B		; Restore stack.
+	PUSH D
+	PUSH 

@@ -7,15 +7,17 @@
  * long and floating descriptors added HT Apr 83
  * Split for float/nonfloat and long/nonlong versions WB 5/25/83.
  * Fix floating precision default, %3c, %% WB 11/15/83.
+ * Fix for unsigned chars WB 12/26/83.
+ * Fix for I/O redirection John Toscano 4/17/84.
  */
 
 #undef printf
 #undef fprintf
 #undef sprintf
 
-static int *prnt_p;	/* Pointer into printf arglist */
+static int *prnt_p,	/* Pointer into printf arglist */
+	    Pfo;	/* Channel number for output */
 static char *Pf = "",	/* current location in user's format */
-	    Pfo,	/* Channel number for output */
 	    *Pst;	/* current location in user's output string */
 static int Width;	/* minimum field width */
 static int Pr;		/* precision */
@@ -78,11 +80,12 @@ prnt_4(lastarg) {
 
 format(form)
 char *form;
-{	fformat(0,form);
+{	extern fout;
+	fformat(fout,form);
 }
 
 fformat(chan,form)
-char chan,*form;
+char *form;
 {	Pfo = chan;
 	Pf = form;
 	Ps();
@@ -100,13 +103,11 @@ static Ps()    /* output format up to next % */
 
 static Pc(c)
 char c;
-{	switch(Pfo)
-	{   case 0: putchar(c); return;
-	    case -2: *Pst++ = c;
-		     *Pst = 0;	/* terminate each intermediate string */
-		     return;
-	    default: putc(c,Pfo);
-	}
+{	if (Pfo == -2) {
+		*Pst++ = c;
+		*Pst = 0;	/* terminate each intermediate string */
+		return; }
+	putc(c,Pfo);
 }
 
 printf(arg)	/* print one arg using current format */
@@ -256,5 +257,4 @@ static hexdig(c) {
 
 
 
-	if (n < 0) {	if (Pad != ' ') { Pc('-'); --Width; }
-			      else
+	if (n < 0) {	if (Pad != ' ')
