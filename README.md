@@ -40,8 +40,6 @@ To run the resulting apps, use NTVCM's -c flag to force console mode and -p flag
   * ntvcm -c -p e
   * ntvcm -c -p ttt
  
-The m80 Z80 Macro Assembler only has ttt.mac and no sieve or e implementations. The 8080 code in the asm folder is already faster than any Z80 code the compilers produce.
-
 The Borland Pascal and Modula-2 products don't support command-line builds, so you have to run the apps, load the source file, and build manually.
 
 The build scripts assume ntvcm is in your path. Linux systems generally have case-sensitive file systems and CP/M generally forces uppercase filenames. You're best off if you change all tool files, source files, and arguments to uppercase on Linux.
@@ -56,5 +54,5 @@ The Cowgol 0.6.1 compiler has not yet been tested with NTVCM and the benchmark a
 
 Here are runtimes for the benchmarks in milliseconds for a 4Mhz Z80 as emulated by [NTVCM](https://github.com/davidly/ntvcm/)
 
-<img width="974" height="1883" alt="table" src="https://github.com/user-attachments/assets/cc57b5bb-beee-4853-ad97-af8ac9e32ff7" />
+<img width="973" height="1883" alt="table" src="https://github.com/user-attachments/assets/cf90d012-332a-4a19-b235-6379e0ad2d7d" />
 
