@@ -79,24 +79,6 @@ actualcode:
         ldir
 
         ; iterate through array entries and count primes
-
-;        ld         bc, 0            ; b is "i" in the outer for loop
-;
-;  nextprime:                        ; for (i = 0; i <= SIZE; i++) {
-;        xor        a
-;        ld         hl, flags
-;        add        hl, bc
-;  npshortcut:
-;        cp         (hl)             ; if (flags[i])
-;        jp         nz, flagison
-;        inc        bc
-;        ld         a, 20h
-;        cp         b
-;        jp         z, checknextiter
-;        inc        hl
-;        xor        a
-;        jp         npshortcut
-
         ; register usage:
         ;    bc:    i in the for loop
         ;    de:    prime
@@ -180,20 +162,6 @@ DisplayOneCharacter:                ; display the character in a
         pop     bc
         ret
 
-DisplayDigit:                       ; Argument # 0-9 is in register B
-        push    bc
-        push    de
-        push    hl
-
-        ld      a, 48
-        add     a, b
-        call    DisplayOneCharacter
-
-        pop     hl
-        pop     de
-        pop     bc
-        ret
-
 DisplayString:                      ; display null-terminated string pointed to by hl
         push    hl
         push    de
@@ -224,16 +192,6 @@ NegateHL:                           ; negate hl via twos complement -- complemen
         cpl
         ld      l, a
         inc     hl
-        ret
-
-NegateDE:                           ; negate de via twos complement -- complement + 1
-        ld      a, d
-        cpl
-        ld      d, a
-        ld      a, e
-        cpl
-        ld      e, a
-        inc     de
         ret
 
 DisplayHL:
@@ -272,7 +230,6 @@ DisplayHL:
         jp      bdos                ; And only then print the string. bdos will return to caller
 
 org 2300h-8192
-
         flags:      ds      size + 1
         afterflags: db      69h             ; make it easy to find. will be 1 after initialization to terminate cpir
 
