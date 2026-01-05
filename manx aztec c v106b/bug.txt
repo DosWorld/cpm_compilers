@@ -1,0 +1,8 @@
+In this version of Manx C, comparisons to long integers that are less than 0 return incorrect results due to a bug the C runtime.
+
+long l;
+l = -2;
+if ( l < 0 )
+   printf( "this isn't printed\n" );
+
+
