@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <bdscio.h>
 
 #define allocs 66 /* not enough RAM with hisoft to go higher */
 

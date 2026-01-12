@@ -1,19 +1,28 @@
+#include <std.h>
 #include <stdio.h>
 
+#ifdef HISOFTC
+#include <stdlib.h>
+#endif
+
+#ifdef HISOFTC
 #define allocs 66 /* not enough RAM with hisoft to go higher */
+#else
+/* aztec works with 69 */
+/* whitesmith c v2.2 works only up to 65 */
+#define allocs 65
+#endif
 
-int logging;
-
-#define malloc alloc
+int logging = 1;
 
 char * memset_x( p, v, c ) char * p; int v; int c;
 {
-    char * pc;
-    char val;
+    unsigned char * pc;
+    unsigned char val;
     int i;
 
-    pc = p;
-    val = ( v & 0xff );
+    pc = (unsigned char *) p;
+    val = (unsigned char) ( v & 0xff );
 
     if ( 0 == p )
     {
@@ -22,29 +31,30 @@ char * memset_x( p, v, c ) char * p; int v; int c;
     }
 
     if ( logging )
+#ifdef CPMTIME
         printf( "  memset p %u, v %d, val %x, c %d\n", p, v, val, c );
+#else
+
+#ifdef HISOFTC
+        printf( "  memset p %u, v %d, val %x, c %d\n", p, v, val, c );
+#else
+        printf( "  memset p %u, v %d, val %x, c %d\n", p, v, val, c );
+#endif
+#endif
 
     for ( i = 0; i < c; i++ )
         *pc++ = val;
     return p;
 }
 
-char * calloc( a, b ) int a; int b;
+int chkmem( p, v, c ) char * p; int v; int c;
 {
-    int size;
-    char * p;
-    size = a * b;
-    p = malloc( size );
-    memset_x( p, 0, size );
-}
-
-void chkmem( p, v, c ) char * p; int v; int c;
-{
-    char * pc;
-    char val;
+    unsigned char * pc;
+    unsigned char val;
     int i;
-    pc = p;
-    val = ( v & 0xff );
+
+    pc = (unsigned char *) p;
+    val = (unsigned char) ( v & 0xff );
 
     if ( 0 == p )
     {
@@ -56,7 +66,11 @@ void chkmem( p, v, c ) char * p; int v; int c;
     {
         if ( *pc != val )
         {
+#ifdef CPMTIME
             printf( "memory isn't as expected! p %u, v %d, c %d, *pc %d\n",p, v, c, *pc );
+#else
+            printf( "memory isn't as expected! p %u, v %d, c %d, *pc %d\n",p, v, c, *pc );
+#endif
             exit( 1 );
         }
         pc++;
@@ -84,11 +98,11 @@ int main( argc, argv ) int argc; char * argv[];
             if ( logging )
                 printf( "  i, cb: %d %d\n", i, cb );
 
-            pc = calloc( c_cb, 1 );
+            pc = (char *) calloc( c_cb, 1 );
             chkmem( pc, 0, c_cb );
             memset_x( pc, 0xcc, c_cb );
     
-            ap[ i ] = malloc( cb );
+            ap[ i ] = (char *) malloc( cb );
             memset_x( ap[ i ], 0xaa, cb );
     
             chkmem( pc, 0xcc, c_cb );
@@ -105,7 +119,7 @@ int main( argc, argv ) int argc; char * argv[];
             if ( logging )
                 printf( "  i, cb: %d %d\n", i, cb );
     
-            pc = calloc( c_cb, 1 );
+            pc = (char *) calloc( c_cb, 1 );
             chkmem( pc, 0, c_cb );
             memset_x( pc, 0xcc, c_cb );
     
@@ -127,7 +141,7 @@ int main( argc, argv ) int argc; char * argv[];
             if ( logging )
                 printf( "  i, cb: %d %d\n", i, cb );
     
-            pc = calloc( c_cb, 1 );
+            pc = (char *) calloc( c_cb, 1 );
             chkmem( pc, 0, c_cb );
             memset_x( pc, 0xcc, c_cb );
     
