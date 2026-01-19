@@ -54,6 +54,7 @@ The Cowgol 0.6.1 compiler has not yet been tested with NTVCM and the benchmark a
 
 Here are runtimes for the benchmarks in milliseconds for a 4Mhz Z80 as emulated by [NTVCM](https://github.com/davidly/ntvcm/)
 
-<img width="972" height="1881" alt="table" src="https://github.com/user-attachments/assets/64212c6a-c707-4e4b-a0f9-e19e043753f0" />
+<img width="974" height="1919" alt="table" src="https://github.com/user-attachments/assets/bc97007d-acfe-4b3c-af6e-69da2e9faa85" />
+
 
 
