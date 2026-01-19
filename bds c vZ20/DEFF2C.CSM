@@ -1,0 +1,803 @@
+;
+; The ZSETFCB function, containing all FCB initialization, password
+; protection code for file I/O operations under Zsystems.
+;
+
+	INCLUDE "bds.lib"
+
+;
+; Setfcb:
+;	zsetfcb(fcbaddr, filename, userno)
+;	FCB *fcbaddr;		/* no such type, really, just for doc. */
+;	char *filename;
+;	int *userno;
+;
+; Parse a given filename onto a given FCB area, using full ZCPR3 DU: and
+; named directory recognition. Returns 0 on success, else -1 with
+; errno set to appropriate error code.
+; Stuffs user number of the file into int pointed to by userno.
+;
+
+	FUNCTION	zsetfcb
+	EXTERNAL	_setfcb
+
+	call	ma2toh	;get pointer to name text
+	xchg		;put into DE
+	call	ma1toh	;get ptr to fcb area
+
+	push	d	;pass filename	to _setfcb
+	push	h	;pass fcb address to _setfcb
+	call	_setfcb	; do it
+	pop	h
+	pop	d
+
+	call	ma3toh	;get userno pointer
+	lda	tmp1	;get user no.
+	mov	m,a	;save
+	inx	h
+	mvi	m,0	;zero high order byte
+	
+	lxi	h,0	;all OK.
+	rnc		;(carry still set from setfc0)
+	dcx	h	;error
+	ret
+	ENDFUNC
+
+
+;
+; Internal setfcb, doesn't take third arg:
+;
+
+	FUNCTION	_setfcb
+
+	call	ma2toh	;get pointer to name text
+	xchg		;put into DE
+	call	ma1toh	;get ptr to fcb area
+	call	setfc0	; do it
+	lxi	h,0	;all OK.
+	rnc		;(carry still set from setfc0)
+	dcx	h	;error
+	ret
+
+
+;
+; Process filename with NDR recognition or optional "du:" prefix processing.
+; Store the effective user area number of the given filename at "usrnum".
+; (s1 byte of fcb also set to the user number).
+;
+; Note that if no user number or drive are specified, the current user area
+; and currently logged drive are presumed by default.
+;
+; Return with Cy set if some kind of error noticed.
+;
+ 
+setfc0:	xra 	a	;no security violation by default
+	sta	secvio
+
+	push	b	;save BC
+	push	h	;save fcb pointer
+	call	igwsp	;ignore blanks and tabs	
+	call	tstz	;Z system?
+	jc	vstdu	;if not, don't check for named directory
+
+	push	h
+	call	tstndr	;test for named directory
+	pop	h	;get fcb buffer
+	jnc	setu	;if name found and accepted, all done with prefix
+
+	ora	a	;name not accepted. security violation?
+	jz	vstdu	;if not, go parse for du:
+
+	inr	a	;security violation:  set security violation flag
+	sta	secvio
+	jmp	vstng	;and go stuff fcb with impossible filename
+
+vstdu:	push	h	;save fcb ptr
+	call	tstdu	;get effective drive and user area codes in B & C.
+	pop	h	;restore fcb ptr
+	jnc	setu	;if no problem with du: prefix, go process filenanme
+
+vstng:	mvi	a,0	;go stuff impossible filename into fcb 
+	jmp	setf3
+
+setu:	push	psw	;set user number returned in C
+	mov	a,c	;place in upper 5 bits of A
+	sta	tmp1	;save for later
+	rlc
+	rlc
+	rlc
+	sta	usrnum	;store for file I/O routines
+	pop	psw
+
+	mov	m,b	;set disk designator byte in FCB
+	inx	h
+
+	mvi	b,8
+	call	setnm	;set filename, pad with blanks
+	call	setnm3	;ignore extra characters in filename
+	ldax	d
+	cpi	'.'	;if an extension is given,
+	jnz	setf2
+	inx	d	;skip the '.'
+setf2:	mvi	b,3
+	call	setnm	;set the extension field and pad with blanks
+
+	xra	a	;and zero the appropriate fields of the fcb
+	mov	m,a	;ex byte
+
+	inx	h
+	lda	tmp1	;user number
+	mov	m,a
+
+	lxi	d,19
+	dad	d
+	xra	a
+	mov	m,a	;cr byte
+	inx	h
+	mov	m,a	;r0
+	inx	h
+setf3:	mov	m,a	;r1
+	inx	h
+	mov	m,a	;r2
+	pop	d	;restore original fcb pointer into DE for BDOS calls
+	pop	b	;restore BC
+	ret
+
+
+;
+; This routine copies up to B characters from (DE) to (HL),
+; padding with blanks on the right. An asterisk causes the rest
+; of the field to be padded with '?' characters:
+;
+
+setnm:	push	b
+setnm1:	ldax	d
+	cpi	'*'	;wild card?
+	mvi	a,'?'	;if so, pad with ? characters
+	jz	pad2
+
+setnm2:	ldax	d
+	call	legfc	;next char legal filename char?
+	jc	pad	;if not, go pad for total of B characters
+	mov	m,a	;else store
+	inx	h
+	inx	d
+	dcr	b
+	jnz	setnm1	;and go for more if B not yet zero
+	pop	b
+setnm3:	ldax	d	;skip rest of filename if B chars already found
+	call	legfc
+	rc
+	inx	d
+	jmp	setnm3
+
+pad:	mvi	a,' '	;pad with B blanks
+pad2:	mov	m,a	;pad with B instances of char in A
+	inx	h
+	dcr	b
+	jnz	pad2
+	pop	b
+	ret
+
+
+;
+; tstdu:
+; 	process du: prefix. DE -> filename
+;	returns B=drive, C=user number.
+;	(HL can be wasted)
+; Return Cy set if illegal prefix for some reason.
+;
+
+tstdu:	call	initbc	;initialize B,C with defaults
+	push	h
+	mov	h,b	;save in case of maxdrv/maxusr invalidation
+	mov	l,c
+	shld	tmp2a
+	pop	h
+
+	lda	duok	;are we recognizing du: at all?
+	ora	a
+	rz		;if not, all done.
+	xchg		;save DE in case of maxdrv/maxusr invalidation 
+	shld	tmp2	;later on down the road...
+	xchg
+
+tstdu1:	ldax	d	;look at first text char
+	call	mapuc	;map to upper case
+	call	isupper	;is it a letter?
+	jc	tstusr	;if not, go check for user number prefix
+	sui	'@'	;if so, adjust for drive code
+	mov	h,a	;save in H for now...
+	inx	d	;go to next char of text
+	inr	l	;set "we saw a possible disk letter" flag
+	ldax	d	;get next char
+	cpi	':'	;colon?
+	jnz	tstusr	;if not, possible user number. go process.
+	inx	d	;else just a disk drive. pass the colon
+	mov	b,h	;set B = drive code
+	jmp	postdu	;go check for maxdrv/maxusr problems
+
+tstusr:	push	d	;save text ptr
+	call	tstuno	;test for user number at DE
+	jnc	tstu2	;if found, go handle
+	pop	d	;no user number, so no disk drive either.
+	dcr	l	;check if we began with a possible drive letter
+	stc		;clear Cy
+	cmc
+	rnz		;if not, we're all done with B & C at default values
+	dcx	d	;otherwise back up to the possible drive letter we saw
+	ret		;and return with DE->start of the scanned text
+
+tstu2:	mov	c,a	;set C = the user number found
+	dcr	l	;was there a drive letter also?
+	mov	a,h	;get (possible) drive code into A
+	pop	h	;clear the stack
+	jnz	postdu	;if no drive letter leave at default
+	mov	b,a	;else there WAS a drive, so set B = drive code
+
+; Now check BC to make sure drive/user are legal in this configuration:
+
+postdu	call	chkdrv	;check for drive active in vector
+	jc	posterr	;if not, error
+
+post2:	call	maxok	;are BC codes within max ranges?
+	rnc		;if so, all done, no problem
+	call	findnd	;are these codes used in the NDR?
+	jnc	post3	;if so, go check password
+			;else return with Cy set
+posterr:
+	stc		;set Cy for error condition
+	lhld	tmp2a	;else du: fails, restore original DE & BC
+	mov	b,h	;restoring default B,
+	mov	c,l	;default C,
+	lhld	tmp2	;and original DE
+	xchg
+	mvi	a,1
+	sta	secvio	;set security violation flag
+	ret
+
+post3:	lda	pwdchk	;are we checking passwords?
+	ora	a
+	rz		;if not, don't bother...
+	push	d	;save DE
+	lxi	d,8	;look at password in NDR
+	dad	d
+	mov	a,m
+	cpi	' '	;is there one?
+	pop	d
+	jnz	posterr	;if so, reject the du: prefix and return defaults
+	ret		;if no password, we accept the du: prefix.
+		
+;
+; Check if drive in B is active according to drive vector.
+; Set Cy if not, else clear Cy.
+; 
+
+chkdrv:	lda	envtyp	;type 80h or greater ZCPR3?
+	ani	80h
+	rz		;if not, don't check drive vector
+	call	chkvec	;check if vector bit B is on
+	ret		;return with Cy set if error
+
+
+;
+; chkvec:
+;	Check that drive represented by code in B is indeed
+;	active according to the drive vector word.
+;	Return NC if corresponding bit is TRUE, 
+;	Cy if not.
+;
+
+chkvec:	push	h
+	push	d
+	push	b
+	lxi	h,1	;start bit at low end
+chklp:	dcr	b
+	jz	chkout
+	dad	h	;shift bit to left
+	jmp	chklp
+
+chkout:	xchg		;put mask into DE
+	lhld	drvec	;get drive vector
+	mov	a,d	;AND the two
+	ana	h
+	mov	d,a
+	mov	a,e
+	ana	l
+	ora	d	;any bits on?
+	pop	b
+	pop	d
+	pop	h
+	stc
+	rz		;return Cy if not
+	cmc
+	ret		;else return NC	
+
+
+
+;
+; tstuno:
+;	Test if the text at DE is of form 'uuu:'
+;	Return NC if so, with A = the value, DE -> after the ':'
+;	else return Cy set (DE can be wasted)
+;
+
+tstuno:	ldax	d	;get a char of text
+	call	isdec	;is it a decimal digit?
+	rc		;if not, that's all there is to it...
+	push	b	;else save BC
+	mvi	b,0	;B = accumulated user number
+tstu1:	ldax	d	;get next char
+	call	isdec	;digit?
+	jc	tstun2	;if not, go wrap up
+	sui	'0'	;else add to total
+	mov	c,a
+	mov	a,b
+	add	a	;previous total * 2
+	add	a	; * 4
+	add	a	; * 8
+	add	b	; * 9
+	add	b 	; *10
+	add	c	; + new digit
+	mov	b,a	;save new total
+	inx	d	;bump text ptr
+	jmp	tstu1	;loop
+
+tstun2:	cpi 	':'	;trailing colon?
+	mov	a,b	;prepare to return with user number in A
+	pop	b	;restore BC
+	stc		;in case no colon
+	rnz		;return Cy if no legal user number
+	inx	d	;there was a colon, so bingo.
+	cmc		;return NC
+	ret
+
+
+;
+; initbc:
+;	Set up B and C registers with currently logged drive and
+;	user area codes. Only call user area BDOS function if the
+;	USAREA equate is true.
+;
+
+initbc:	lda	cusr
+	mov	c,a
+	lda	cdrv
+	mov	b,a
+	mvi	l,0	;clear "saw a possible drive letter" flag
+	ret
+
+
+;
+; tstndr:
+;	Process possible Named Directory Register prefix on filename
+;	at DE.
+;	If NDR match found (and password accepted), return NC,
+;		DE -> after the colon, and with B,C = drive,
+;		user number associated with name,
+;		A = 0 indicating no security violation
+;
+;	else return Cy, with DE presrved. If there was a security violation,
+;		return A non-zero.
+;
+;	(HL can be wasted)
+
+tstndr:	lhld	z3ndir
+tstnd1:	mov	a,m	;any more entries?
+	ora	a
+	jnz	tstnd2	;if so, go process
+	stc		;done scanning table. no matches;
+	ret		; (A = 0 means no password trouble)
+
+tstnd2:	mov	b,m	;save disk code
+	inx	h
+	mov	c,m	;save user number code
+	inx	h
+	push	b	;save disk/user values
+	push	h	;save NDR ptr
+	call	tstnm	;compare the name with DE text
+	pop	h	;restore ptr to NDR name
+	jnc	tstnd3	;if matched, go process that
+	lxi	b,16	;no match. bump NDR ptr to next entry
+	dad	b
+	pop	b	;clean up stack
+	jmp	tstnd1	;and continue scanning NDR table
+
+tstnd3:	push	d	;save text ptr
+	call	chkdrv	;check if drive bit is OK in drive vector
+	mvi	a,0	;in case of not ok, don't confuse with pw error
+	jc	tstnd4	;if not, return with Cy set
+
+	call	maxok	;within maxdrv/maxusr limits?
+	jnc	tstnd4	;if so, don't check for password...
+
+	call	verpwd	;check for password, handle if present
+	mvi	a,1	;if password OK, this is ignored (since Cy is reset)
+
+tstnd4:	pop	d	;restore text pointer
+	pop	b	;get drive/user codes that we're returning
+	ret		;  otherwise, this indicates a password problem.
+	
+;
+; maxok:
+;	Return Cy if B/C combo out of range of maxdrv/maxusr.
+;	Exception: allow b/c to be same as cdrv/cusr without
+;		bounds checking.
+;
+
+maxok:	push	h
+	call	tstbcc	;test if B/C are current drive/user
+	rz		;if so, OK
+	call	tstm2	;do the test
+	pop	h
+	ret
+
+;
+; Return Z true if B/C equal to cdrv/cusr:
+;
+
+tstbcc:	lhld	cdrv	;load HL with cusr, cdrv
+	mov	a,h
+	cmp	c
+	rnz
+	mov	a,l
+	cmp	b
+	ret
+
+;
+; Return Cy true if B/C out of range of maxdrv/maxusr
+;
+
+tstm2:	lhld	maxdrv	;load maxdrv/maxusr into L and H
+	mov	a,l
+	cmp	b
+	rc		;if maxusr < B, out of range
+	mov	a,h
+	cmp	c	;if maxdrv < C, out of range
+	ret
+
+;
+; findnd:
+; 	Check if B/C drive/user combo are in NDR as an active
+;	combination. If so, return HL -> name, Carry reset.
+;	If not in table, return Cy set.
+;
+
+findnd:	lhld	z3ndir	;get base of NDR table
+fnd0:	mov	a,m	;look at drive byte
+	ora	a	;end of table?
+	stc
+	rz		;if so, return Cy set.
+	cmp	b	;drive match B?
+	inx	h
+	jnz	fndlp	;if not, go loop
+	mov	a,m	;if so, test user number
+	cmp	c
+	jnz	fndlp	;matches also?
+	inx	h	;yes. return pointer to name field now.
+	ret
+
+fndlp:	push	d	;save DE
+	lxi	d,17	;get to start of next table entry
+	dad	d
+	pop	d
+	jmp	fnd0
+
+;
+; tstnm:
+;	input:	DE -> possible named directory prefix text
+;		HL -> 'name' field of NDR table entry
+;
+;	if matches, then return NC and DE -> char after ':'
+;	else set Cy, return original DE
+;	(HL can be wasted)
+;
+
+tstnm:	push	d	;save text pointer
+	call	txtcmp	;compare DE text to NDR name
+	pop	h	;get original text ptr into HL
+	xchg		;DE=orig txt ptr, DE -> after tested text
+	rc		;if no match, return orinal ptr and Cy flag
+	mov	a,m	;get text character after name that matched
+	cpi 	':'	;match. trailing ':'?
+	xchg		;DE->colon, HL->original text
+	inx	d	;bump DE to after colon
+	rz		;return NC if matched and colon found
+	xchg		;DE now -> original text
+	stc		;set Cy to indicate no match
+	ret
+
+;
+; txtcmp:
+; 	Compare text at DE, terminated by null, colon or whitespace,
+;	     to text at HL (up to 8 chars, terminated by space [or nothing if 8])
+;	Return NC if matches, with DE -> first non-matching char
+;	  or Cy set if no match, (DE can be bashed in this case)
+;
+
+txtcmp:	push	b	;save BC
+	mvi	b,9	;char count
+tstc1:	ldax	d	;get current DE text char in A
+	dcr	b	;debump count
+	jnz 	tstc3	;have we checked 8 chars?
+tstc2:	pop	b	;yes. That means so far we've matched.
+	ret
+
+tstc3:	ora	a	;current text char a null?
+	jz	endtxt	;if so, end of text
+	cpi	':'	;same for colon
+	jz	endtxt
+	call	iswsp	;same for whitespace
+	jnz	tstc4
+endtxt:	mov	a,m	;end of DE text. End of HL text?
+	cpi 	' '	;space signals end
+	jz	tstc2	;if so, we have a match, and return.
+	stc		;else we do NOT have a match.
+	pop	b	;	so return Cy set
+	ret
+
+tstc4:	mov	a,m	;at this point, DE is NOT terminated.
+	cpi	' '	;is HL terminated?
+	stc		;in case it is,
+	jz	tstc2	;	return Cy to show no match
+	ldax	d	;now compare the characters
+	call	mapuc	;convert DE text to upper case
+	cmp	m	;match?
+	stc
+	jnz	tstc2	;if not, return no match.
+	inx	d	;else match: bump ptrs and go for next iteration
+	inx	h
+	jmp	tstc1
+
+
+;
+; verpwd:
+;	input: HL -> 'name' field of NDR table entry
+;
+; If no password, or pwdchk is false, return NC (no need to check it);
+; If the password field contains text, ask for the password and check
+; to see if the user enters exact same text (EXCEPT when wheel byte true)
+; 	if he does, return NC
+;	if not, return Cy set.
+;
+; (DE, BC, HL can all be wasted)
+;
+
+verpwd:	lda	pwdchk	;are we checking passwords?
+	ora	a
+	rz		;if not, all done
+
+	push	h	;save NDR name pointer
+	lxi	d,8	;look at first char of password
+	dad	d
+	mov	a,m
+	cpi	' '	;is it a space?
+	pop	h
+	rz		;if so, we don't need a password
+
+	lda	wheel	;wheel byte set?
+	ora 	a
+	rnz		;if so, don't check password
+
+	push	h	;save NDR name pointer
+
+	lda	custpw	;custom pw input routine?
+	ora	a
+	jz	ver0	;if not, do internally
+
+	lxi	d,pwbuf	;copy dir name to pwbuf
+	push	d	;save buf addr
+	mvi	b,8
+ver0c:	mov	a,m
+	stax	d
+	inx	h
+	inx	d
+	cpi	' '
+	jz	ver0a
+	dcr	b
+	jnz	ver0c
+ver0a:	xra	a
+	stax	d	;store terminating null
+	
+	lhld	custfn	;get address of custom function
+	lxi	d,ver0b	;push return address
+	push	d
+	pchl		;call user's input function
+
+ver0b:	pop	d	;clean up stack
+	xchg		;place ptr to user's input text in DE
+	pop	h	;get NDR name ptr
+	lxi	b,8	;point to password
+	dad	b
+	push 	h	;push back
+	jmp 	ver3a	;and go compare strings
+
+ver0:	lxi	d,pwmsg	;prompt message text
+	mvi	c,9	;BDOS print string function
+	call	bdos
+	pop	h	;get back name pointer
+	mvi	b,8	;print out directory name
+ver1:	mov	a,m
+	cpi	' '
+	call	putch	;print if not a space
+	inx	h
+	dcr	b	;decrement counter
+	jnz	ver1
+	push	h	;save password pointer
+	mvi	a,'?'	;trailing colon and space
+	call	putch
+
+	mvi	a,' '	;print a space for Jay...
+	call	putch
+
+	lxi	d,pwbuf
+	push	d	;save text pointer
+	mvi	b,8	;char count
+ver2:	call	getch	;get a character of input
+	cpi	0dh	;carraige return?
+	jz	ver3	;if so, done reading password text
+	stax	d
+	inx	d
+	dcr	b
+	jnz	ver2	;if haven't read 8 chars, loop
+ver3:	xra	a
+	stax	d	;store terminator
+	pop	d	;restore pointer to start of text
+
+ver3a:	pop	h	;restore NDR password pointer
+	call	txtcmp	;compare
+	jnc	ver4	;if no problem, print trailing CR/LF
+
+	mvi	a,15	;password error
+	sta	errnum	;set password error code
+
+	lxi	d,pwerm	;password error message
+	mvi	c,9	;print message
+	lda	custpw	;custom password mech. enabled?
+	ora	a
+	cz	bdos	;only print message if not.
+	stc		;return with Cy set
+	ret
+
+ver4:	mvi	c,9
+	lxi	d,pwcrl	;print cr/lf after entry of correct password
+	lda	custpw	;custom pw mech. enabled?
+	ora	a
+	cz	bdos	;only print msg if not.
+
+	xra	a	;clear Cy
+	ret		;return with Cy flag reset
+
+pwmsg:	db	'Password for $'
+pwerm:	db	' Wrong!',cr,lf,bell,'$'
+pwcrl:	db	cr,lf,'$'
+pwbuf:	ds	9	;password verification buffer
+
+
+;
+; print a character to the console:
+;
+
+putch:	push	b
+	push	h
+	mov	e,a
+	mvi	c,2
+	call	bdos
+	pop	h
+	pop	b
+	ret
+
+;
+; get a character, no echo:
+;
+
+getch:	push	b
+	push	d
+wait:	mvi	c,6	;direct console I/O
+	mvi	e,0ffh
+	call	bdos
+	ora	a	;any character gotten?
+	jz	wait
+	pop	d
+	pop	b
+	ret
+
+
+;
+; Test if char in A is legal character to be in a filename:
+;
+
+legfc:	call	mapuc
+	cpi	'.'	; '.' is illegal in a filename or extension
+	stc
+	rz
+	cpi	':'	;so is ':'
+	stc 	
+	rz
+	cpi	7fh	;delete is no good
+	stc
+	rz
+	cpi	'!'	;if less than exclamation pt, not legal char
+	ret		;else good enough
+
+;
+; Map character in A to upper case if it is lower case:
+;
+
+mapuc:	cpi	'a'
+	rc
+	cpi	'z'+1
+	rnc
+	sui	32	;if lower case, map to upper
+	ret
+
+;
+; Set Cy if char in A is not upper case letter:
+;
+
+isupper:
+	cpi 'A'
+	rc
+	cpi 'Z'+1
+	cmc
+	ret
+
+
+;
+; Ignore blanks and tabs at text pointed to by DE:
+;
+
+igwsp:	dcx	d
+igwsp1:	inx	d
+	ldax	d
+	call	iswsp	;is it whitespace?
+	jz	igwsp1
+	ret
+
+;
+; Return Z if char in A is a whitespace character
+;
+
+iswsp:	cpi	' '	;space
+	rz
+	cpi	0ah	;linefeed
+	rz
+	cpi	9	;tab
+	ret
+
+
+;
+; Return Cy if char in A is not a decimal digit:
+;
+
+isdec:	cpi	'0'
+	rc
+	cpi	'9'+1
+	cmc
+	ret
+
+
+;
+; tstz:
+;	Return NC if Z-SYSTEM, else Cy set to indicate vanilla CP/M:
+
+tstz:
+	push	b	;save BC
+	push	h	;save HL
+	mov	b,a	;save A
+	lhld	zenvad	;get environment pointer
+	mov	a,h	;is it 0?
+	ora	l
+	stc		;if so, return Cy set
+	mov	a,b	;restore registers
+	pop	h
+	pop	b
+	rz		;return Cy set if env addr is 0
+	cmc
+	ret		;else return Cy clear
+
+	ENDFUNC
+
+
+	END
+
